@@ -1,4 +1,8 @@
+import path from "node:path";
 import { defineConfig } from "vitest/config";
+
+const __dirname = import.meta.dir;
+
 export default defineConfig({
   test: {
     includeSource: ["src/**/*.{ts}"],
@@ -6,5 +10,8 @@ export default defineConfig({
     coverage: {
       provider: "v8",
     },
+  },
+  resolve: {
+    alias: { "@": path.resolve(__dirname, "src") },
   },
 });
