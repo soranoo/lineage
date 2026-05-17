@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from "vitest";
 
 import type {
   AbsolutePath,
@@ -32,14 +32,10 @@ import type {
   TrackerConfig,
   TrackerIssue,
   TrackResult,
-} from '@/types';
+} from "@/types";
 
-import {
-  CyclicResolutionError,
-  ParseError,
-  StartPointNotFoundError,
-} from '@/types';
-import { offsetFromLineCol } from '@/helpers/offset-from-line-col';
+import { CyclicResolutionError, ParseError, StartPointNotFoundError } from "@/types";
+import { offsetFromLineCol } from "@/helpers/offset-from-line-col";
 
 type _ExportedTypes = {
   AbsolutePath: AbsolutePath;
@@ -80,35 +76,31 @@ type _ExportedTypes = {
 
 const _typecheck: _ExportedTypes | null = null;
 
-describe('offsetFromLineCol', () => {
-  it('maps line 1, col 1 to offset 0', () => {
-    expect(offsetFromLineCol('abc', 1, 1)).toBe(0);
+describe("offsetFromLineCol", () => {
+  it("maps line 1, col 1 to offset 0", () => {
+    expect(offsetFromLineCol("abc", 1, 1)).toBe(0);
   });
 
-  it('maps line 2, col 1 to the first char after the newline', () => {
-    const source = 'first\nsecond';
-    expect(offsetFromLineCol(source, 2, 1)).toBe('first'.length + 1);
+  it("maps line 2, col 1 to the first char after the newline", () => {
+    const source = "first\nsecond";
+    expect(offsetFromLineCol(source, 2, 1)).toBe("first".length + 1);
   });
 
-  it('handles tabs and unicode on multi-line input', () => {
-    const source = 'a\tb\ncπd\nend';
+  it("handles tabs and unicode on multi-line input", () => {
+    const source = "a\tb\ncπd\nend";
     expect(offsetFromLineCol(source, 2, 2)).toBe(5);
   });
 
-  it('throws RangeError when line is out of range', () => {
-    expect(() => offsetFromLineCol('a\nb', 3, 1)).toThrow(RangeError);
+  it("throws RangeError when line is out of range", () => {
+    expect(() => offsetFromLineCol("a\nb", 3, 1)).toThrow(RangeError);
   });
 
-  it('throws RangeError when column is out of range', () => {
-    expect(() => offsetFromLineCol('abc', 1, 5)).toThrow(RangeError);
+  it("throws RangeError when column is out of range", () => {
+    expect(() => offsetFromLineCol("abc", 1, 5)).toThrow(RangeError);
   });
 
-  it('exports all shared types', () => {
+  it("exports all shared types", () => {
     expect(_typecheck).toBeNull();
-    expect([
-      StartPointNotFoundError,
-      ParseError,
-      CyclicResolutionError,
-    ]).toHaveLength(3);
+    expect([StartPointNotFoundError, ParseError, CyclicResolutionError]).toHaveLength(3);
   });
 });

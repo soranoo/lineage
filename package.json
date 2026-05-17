@@ -1,11 +1,11 @@
 {
   "name": "lineage",
-  "module": "src/index.ts",
   "description": "",
   "keywords": [],
   "license": "ISC",
   "author": "soranoo",
   "type": "module",
+  "module": "src/index.ts",
   "scripts": {
     "dev": "bun run src/index.ts",
     "build": "tsc",
@@ -16,10 +16,6 @@
     "fmt:check": "oxfmt --check",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix"
-  },
-  "lint-staged": {
-    "*.{js,jsx,ts,tsx,mjs,cjs}": "bun run lint",
-    "*": "oxfmt --no-error-on-unmatched-pattern"
   },
   "dependencies": {
     "assert-never": "^1.4.0",
@@ -38,5 +34,9 @@
   },
   "peerDependencies": {
     "typescript": "^5"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx,mjs,cjs}": "bun run lint",
+    "*": "oxfmt --no-error-on-unmatched-pattern"
   }
 }
