@@ -4,10 +4,18 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "fmt": "oxfmt",
+    "fmt:check": "oxfmt --check",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx,mjs,cjs}": "pnpm run lint",
+    "*": "oxfmt --no-error-on-unmatched-pattern"
   },
   "keywords": [],
-  "author": "",
+  "author": "soranoo",
   "license": "ISC",
   "devEngines": {
     "packageManager": {
@@ -23,5 +31,9 @@
     "oxc-parser": "^0.131.0",
     "oxc-resolver": "^11.19.1",
     "vitest": "^4.1.6"
+  },
+  "devDependencies": {
+    "oxfmt": "^0.50.0",
+    "oxlint": "^1.65.0"
   }
 }
