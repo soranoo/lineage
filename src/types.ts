@@ -1,6 +1,6 @@
-import type MagicString from 'magic-string';
+import type MagicString from "magic-string";
 
-export type { IParser } from '@/parse/Parser';
+export type { IParser } from "@/parse/Parser";
 
 /**
  * An absolute file system path starting with `/`.
@@ -67,20 +67,20 @@ export type OxcResolverOptions = Record<string, unknown>;
  */
 export type OutputMode =
   /** Overwrite non-dependency ranges with spaces (offsets preserved). */
-  | 'blank'
+  | "blank"
   /** Remove non-dependency ranges entirely (offsets shift). */
-  | 'compact';
+  | "compact";
 
 /**
  * Conservative action taken when an issue is detected.
  */
 export type IssueResolution =
   /** Include the node despite uncertainty. */
-  | 'included'
+  | "included"
   /** Keep the node as a non-recursed leaf. */
-  | 'leaf'
+  | "leaf"
   /** Record the issue but do not change the slice. */
-  | 'flagged-only';
+  | "flagged-only";
 
 /**
  * A half-open character offset range within a source file.
@@ -181,25 +181,25 @@ export type DependencyNode = {
  */
 export type DependencyKind =
   /** The marked start-point node. */
-  | 'start-point'
+  | "start-point"
   /** A variable declaration or binding. */
-  | 'variable'
+  | "variable"
   /** A function parameter binding. */
-  | 'parameter'
+  | "parameter"
   /** A function declaration or expression. */
-  | 'function'
+  | "function"
   /** A call expression within a dependency function. */
-  | 'call-site'
+  | "call-site"
   /** An import declaration. */
-  | 'import'
+  | "import"
   /** A module-level (global) declaration. */
-  | 'global'
+  | "global"
   /** A re-exported binding. */
-  | 're-export'
+  | "re-export"
   /** A resolved import whose file matched an ignore pattern. */
-  | 'ignored-leaf'
+  | "ignored-leaf"
   /** A binding that could not be resolved. */
-  | 'unresolved-leaf';
+  | "unresolved-leaf";
 
 /**
  * Directed edge between dependency nodes.
@@ -218,15 +218,15 @@ export type DependencyEdge = {
  */
 export type EdgeKind =
   /** Value of `from` is read by `to`. */
-  | 'data-flow'
+  | "data-flow"
   /** `to` calls `from`. */
-  | 'call'
+  | "call"
   /** Call argument binds to parameter. */
-  | 'param-bind'
+  | "param-bind"
   /** `to` closes over `from`. */
-  | 'closure'
+  | "closure"
   /** `to` imports `from`. */
-  | 'import';
+  | "import";
 
 /**
  * Issue discovered during slicing.
@@ -251,25 +251,25 @@ export type TrackerIssue = {
  */
 export type IssueKind =
   /** Binding not found in any provided or resolvable file. */
-  | 'unresolved-dependency'
+  | "unresolved-dependency"
   /** Resolved file matched an ignore pattern. */
-  | 'ignored-path'
+  | "ignored-path"
   /** `import(expr)` — target unknown statically. */
-  | 'dynamic-import'
+  | "dynamic-import"
   /** `obj[expr]` — property name unknown statically. */
-  | 'computed-property'
+  | "computed-property"
   /** `eval(...)` — unbounded side effects. */
-  | 'eval'
+  | "eval"
   /** Use of `arguments` — parameter count unknown. */
-  | 'arguments-object'
+  | "arguments-object"
   /** `...spread` of unknown shape. */
-  | 'rest-spread-unknown'
+  | "rest-spread-unknown"
   /** `const f = getFn(); f()` indirect call. */
-  | 'indirect-call'
+  | "indirect-call"
   /** `Foo.prototype.x =` — may affect instances. */
-  | 'prototype-mutation'
+  | "prototype-mutation"
   /** `this.method()` — receiver unknown statically. */
-  | 'this-call';
+  | "this-call";
 
 /**
  * Discriminated union describing the outcome of resolving an import specifier.
@@ -277,13 +277,13 @@ export type IssueKind =
 export type ResolveResult =
   | {
       /** Specifier resolved to a project file. */
-      kind: 'resolved';
+      kind: "resolved";
       /** Absolute path to the resolved file. */
       absolutePath: AbsolutePath;
     }
   | {
       /** Resolved path matched an ignore pattern. */
-      kind: 'ignored';
+      kind: "ignored";
       /** Absolute path to the resolved file. */
       absolutePath: AbsolutePath;
       /** Pattern that caused the match. */
@@ -291,7 +291,7 @@ export type ResolveResult =
     }
   | {
       /** Specifier could not be resolved. */
-      kind: 'failed';
+      kind: "failed";
     };
 
 /**
@@ -352,7 +352,7 @@ export class StartPointNotFoundError extends Error {
 
   constructor(file: AbsolutePath, requestedRange: OffsetRange) {
     super(`Start point not found in ${file}.`);
-    this.name = 'StartPointNotFoundError';
+    this.name = "StartPointNotFoundError";
     this.file = file;
     this.requestedRange = requestedRange;
   }
@@ -369,7 +369,7 @@ export class ParseError extends Error {
 
   constructor(file: AbsolutePath, oxcErrors: unknown[]) {
     super(`Parse error in ${file}.`);
-    this.name = 'ParseError';
+    this.name = "ParseError";
     this.file = file;
     this.oxcErrors = oxcErrors;
   }
@@ -383,8 +383,8 @@ export class CyclicResolutionError extends Error {
   readonly cycle: AbsolutePath[];
 
   constructor(cycle: AbsolutePath[]) {
-    super('Cyclic resolution detected.');
-    this.name = 'CyclicResolutionError';
+    super("Cyclic resolution detected.");
+    this.name = "CyclicResolutionError";
     this.cycle = cycle;
   }
 }
