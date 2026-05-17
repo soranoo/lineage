@@ -1,14 +1,14 @@
 {
   "name": "lineage",
-  "version": "1.0.0",
+  "module": "src/index.ts",
   "description": "",
   "keywords": [],
   "license": "ISC",
   "author": "soranoo",
   "type": "module",
-  "main": "index.js",
   "scripts": {
-    "dev": "deno run src",
+    "dev": "bun run src/index.ts",
+    "build": "tsc",
     "typecheck": "tsc --noEmit",
     "test": "vitest",
     "test:cov": "vitest run --coverage",
@@ -16,6 +16,10 @@
     "fmt:check": "oxfmt --check",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx,mjs,cjs}": "pnpm run lint",
+    "*": "oxfmt --no-error-on-unmatched-pattern"
   },
   "dependencies": {
     "assert-never": "^1.4.0",
@@ -26,21 +30,13 @@
     "vitest": "^4.1.6"
   },
   "devDependencies": {
-    "@types/node": "^25.8.0",
+    "@types/bun": "latest",
     "@vitest/coverage-v8": "^4.1.6",
     "oxfmt": "^0.50.0",
     "oxlint": "^1.65.0",
     "typescript": "^6.0.3"
   },
-  "lint-staged": {
-    "*.{js,jsx,ts,tsx,mjs,cjs}": "pnpm run lint",
-    "*": "oxfmt --no-error-on-unmatched-pattern"
-  },
-  "devEngines": {
-    "packageManager": {
-      "name": "pnpm",
-      "version": "^11.1.2",
-      "onFail": "download"
-    }
+  "peerDependencies": {
+    "typescript": "^5"
   }
 }
