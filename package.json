@@ -2,38 +2,45 @@
   "name": "lineage",
   "version": "1.0.0",
   "description": "",
+  "keywords": [],
+  "license": "ISC",
+  "author": "soranoo",
+  "type": "module",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "deno run src",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest",
+    "test:cov": "vitest run --coverage",
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix"
   },
+  "dependencies": {
+    "assert-never": "^1.4.0",
+    "magic-string": "^0.30.21",
+    "neverthrow": "^8.2.0",
+    "oxc-parser": "^0.131.0",
+    "oxc-resolver": "^11.19.1",
+    "vitest": "^4.1.6"
+  },
+  "devDependencies": {
+    "@types/node": "^25.8.0",
+    "@vitest/coverage-v8": "^4.1.6",
+    "oxfmt": "^0.50.0",
+    "oxlint": "^1.65.0",
+    "typescript": "^6.0.3"
+  },
   "lint-staged": {
     "*.{js,jsx,ts,tsx,mjs,cjs}": "pnpm run lint",
     "*": "oxfmt --no-error-on-unmatched-pattern"
   },
-  "keywords": [],
-  "author": "soranoo",
-  "license": "ISC",
   "devEngines": {
     "packageManager": {
       "name": "pnpm",
       "version": "^11.1.2",
       "onFail": "download"
     }
-  },
-  "type": "module",
-  "dependencies": {
-    "assert-never": "^1.4.0",
-    "magic-string": "^0.30.21",
-    "oxc-parser": "^0.131.0",
-    "oxc-resolver": "^11.19.1",
-    "vitest": "^4.1.6"
-  },
-  "devDependencies": {
-    "oxfmt": "^0.50.0",
-    "oxlint": "^1.65.0"
   }
 }
