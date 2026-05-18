@@ -1,6 +1,8 @@
 import type MagicString from "magic-string";
+import type { NapiResolveOptions } from "oxc-resolver";
 
 export type { IParser } from "@/parse/Parser";
+export type { IResolver } from "@/resolve/Resolver";
 
 /**
  * An absolute file system path starting with `/`.
@@ -57,10 +59,8 @@ export type OxcAst = unknown;
 
 /**
  * Options forwarded to `oxc-resolver`.
- *
- * Kept as an opaque object until the resolver layer binds to the concrete type.
  */
-export type OxcResolverOptions = Record<string, unknown>;
+export type OxcResolverOptions = NapiResolveOptions;
 
 /**
  * Output mode for sliced source generation.
@@ -305,16 +305,6 @@ export type ParsedFile = {
   /** Original source text. */
   source: SourceText;
 };
-
-/**
- * Resolves module specifiers to absolute file paths.
- */
-export interface IResolver {
-  /**
-   * Resolves a module specifier from a given file location.
-   */
-  readonly resolve: (specifier: SourceText, fromFile: AbsolutePath) => ResolveResult;
-}
 
 /**
  * Shakes unused statements inside a function body.
