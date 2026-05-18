@@ -5,7 +5,14 @@ import type { AbsolutePath, OxcAst, ParsedFile, SourceText } from "@/types";
 import { ParseError } from "@/types";
 import { FakeParser } from "./FakeParser";
 
-const buildAst = (): OxcAst => ({});
+const buildAst = (): OxcAst => ({
+  type: "Program",
+  body: [],
+  sourceType: "module",
+  hashbang: null,
+  start: 0,
+  end: 0,
+});
 
 const buildParsedFile = (absolutePath: AbsolutePath, source: SourceText): ParsedFile => ({
   absolutePath,

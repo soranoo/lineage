@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type {
   AbsolutePath,
+  AstNode,
   CharOffset,
   ColumnNumber,
   DependencyEdge,
@@ -9,6 +10,7 @@ import type {
   DependencyNode,
   EdgeKind,
   IEditor,
+  IIssueCollector,
   IParser,
   IResolver,
   IShaker,
@@ -39,6 +41,7 @@ import { offsetFromLineCol } from "@/helpers/offset-from-line-col";
 
 type _ExportedTypes = {
   AbsolutePath: AbsolutePath;
+  AstNode: AstNode;
   NodeId: NodeId;
   CharOffset: CharOffset;
   LineNumber: LineNumber;
@@ -69,6 +72,7 @@ type _ExportedTypes = {
   IResolver: IResolver;
   IShaker: IShaker;
   IEditor: IEditor;
+  IIssueCollector: IIssueCollector;
   StartPointNotFoundError: StartPointNotFoundError;
   ParseError: ParseError;
   CyclicResolutionError: CyclicResolutionError;

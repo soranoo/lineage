@@ -1,3 +1,4 @@
+import type { Program } from "@oxc-project/types";
 import type MagicString from "magic-string";
 import type { NapiResolveOptions } from "oxc-resolver";
 
@@ -52,10 +53,13 @@ export type IssueMessage = string;
 
 /**
  * Oxc parser AST root type.
- *
- * This remains opaque until the parser layer wires in the concrete type.
  */
-export type OxcAst = unknown;
+export type OxcAst = Program;
+
+/**
+ * Oxc AST node type accepted by detector and slicer helpers.
+ */
+export type AstNode = Program;
 
 /**
  * Options forwarded to `oxc-resolver`.
@@ -305,6 +309,26 @@ export type ParsedFile = {
   /** Original source text. */
   source: SourceText;
 };
+
+/**
+ * Collects tracker issues in insertion order.
+ */
+export interface IIssueCollector {
+  /**
+   * Appends `issue` to the internal list.
+   */
+  readonly add: (issue: TrackerIssue) => void;
+
+  /**
+   * Returns a shallow copy of all collected issues.
+   */
+  readonly getAll: () => TrackerIssue[];
+
+  /**
+   * Clears all collected issues.
+   */
+  readonly clear: () => void;
+}
 
 /**
  * Shakes unused statements inside a function body.
