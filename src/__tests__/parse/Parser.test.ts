@@ -3,7 +3,14 @@ import { describe, expect, it } from "vitest";
 import type { IParser } from "@/parse/Parser";
 import type { AbsolutePath, OxcAst, ParsedFile, SourceText } from "@/types";
 
-const buildAst = (): OxcAst => ({});
+const buildAst = (): OxcAst => ({
+  type: "Program",
+  body: [],
+  sourceType: "module",
+  hashbang: null,
+  start: 0,
+  end: 0,
+});
 
 const buildParsedFile = (absolutePath: AbsolutePath, source: SourceText): ParsedFile => ({
   absolutePath,
