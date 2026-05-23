@@ -1,5 +1,6 @@
 tmp-docs/
 CLAUDE.md
+copilot-instructions.md
 
 # dependencies (bun install)
 node_modules

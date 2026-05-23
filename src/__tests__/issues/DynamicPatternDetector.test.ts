@@ -25,9 +25,16 @@ const expectSingleIssue = (
   resolution: IssueResolution,
 ): void => {
   expect(issues).toHaveLength(1);
-  expect(issues[0].kind).toBe(kind);
-  expect(issues[0].resolution).toBe(resolution);
-  expect(issues[0].file).toBe(file);
+
+  const issue = issues[0];
+
+  if (!issue) {
+    throw new Error("Expected an issue but found none.");
+  }
+
+  expect(issue.kind).toBe(kind);
+  expect(issue.resolution).toBe(resolution);
+  expect(issue.file).toBe(file);
 };
 
 describe("DynamicPatternDetector", () => {
