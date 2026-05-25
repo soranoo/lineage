@@ -5,6 +5,11 @@ import type { AbsolutePath, OxcAst, ParsedFile, SourceText } from "@/types";
 import { ParseError } from "@/types";
 import { FakeParser } from "./FakeParser";
 
+/**
+ * Build a minimal Program AST for tests.
+ *
+ * @returns Minimal Program AST instance.
+ */
 const buildAst = (): OxcAst => ({
   type: "Program",
   body: [],
@@ -14,6 +19,13 @@ const buildAst = (): OxcAst => ({
   end: 0,
 });
 
+/**
+ * Build a ParsedFile for the provided path and source.
+ *
+ * @param absolutePath Absolute path for the parsed file.
+ * @param source Source text to attach to the parsed file.
+ * @returns ParsedFile instance for tests.
+ */
 const buildParsedFile = (absolutePath: AbsolutePath, source: SourceText): ParsedFile => ({
   absolutePath,
   ast: buildAst(),

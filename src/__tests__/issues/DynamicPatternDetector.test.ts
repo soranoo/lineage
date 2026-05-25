@@ -8,6 +8,12 @@ import { IssueCollector } from "@/issues/IssueCollector";
 
 const file: AbsolutePath = "/project/src/dynamic.ts";
 
+/**
+ * Parse the source and return detected tracker issues.
+ *
+ * @param source Source text to analyze.
+ * @returns Issues detected by the dynamic pattern detector.
+ */
 const detectIssues = (source: SourceText): TrackerIssue[] => {
   const parser = new OxcParser();
   const parsed = parser.parse(file, source);
@@ -19,6 +25,14 @@ const detectIssues = (source: SourceText): TrackerIssue[] => {
   return collector.getAll();
 };
 
+/**
+ * Assert that exactly one issue matches the expected kind and resolution.
+ *
+ * @param issues Issues to inspect.
+ * @param kind Expected issue kind.
+ * @param resolution Expected issue resolution.
+ * @throws {Error} When no issue is present in the list.
+ */
 const expectSingleIssue = (
   issues: TrackerIssue[],
   kind: IssueKind,

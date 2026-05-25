@@ -4,9 +4,18 @@ import type { AbsolutePath } from "@/types";
 
 import { IgnoreFilter } from "@/resolve/IgnoreFilter";
 
+/**
+ * RegExp that counts invocations for test assertions.
+ */
 class CountingRegExp extends RegExp {
   count = 0;
 
+  /**
+   * Track invocation count before delegating to RegExp.test.
+   *
+   * @param value String to test against the regex.
+   * @returns True when the regex matches the input.
+   */
   override test(value: string): boolean {
     this.count += 1;
     return super.test(value);

@@ -12,6 +12,12 @@ const fixturesRoot: AbsolutePath = path.resolve(import.meta.dir, "../_fixtures/r
 const entryFile: AbsolutePath = path.resolve(fixturesRoot, "entry.ts");
 const targetFile: AbsolutePath = path.resolve(fixturesRoot, "target.ts");
 
+/**
+ * Build an OxcResolver with the provided ignore patterns.
+ *
+ * @param patterns Ignore patterns to apply.
+ * @returns Configured OxcResolver for tests.
+ */
 const buildResolver = (patterns: IgnorePattern[]): OxcResolver =>
   new OxcResolver(new IgnoreFilter(patterns), {
     extensions: [".ts", ".js", ".json"],

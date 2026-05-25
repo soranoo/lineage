@@ -41,6 +41,10 @@ type StatementAnalysis = {
 export class IntraFunctionShaker implements IShaker {
   /**
    * Returns ranges for statements that do not feed a return or yield expression.
+   *
+   * @param fn Function node to analyze.
+   * @param _source Source text that contains the function.
+   * @returns Set of ranges that should be removed or blanked.
    */
   readonly shake = (fn: FunctionNode, _source: SourceText): Set<OffsetRange> => {
     const statements = getFunctionStatements(fn);
@@ -54,6 +58,13 @@ export class IntraFunctionShaker implements IShaker {
   };
 }
 
+/**
+ * Extract top-level statements from a function body.
+ *
+ * @param fn Function node to inspect.
+ * @returns Statements from the function body, or an empty list for expression bodies.
+ * @throws {Error} When an unexpected function node type is encountered.
+ */
 const getFunctionStatements = (fn: FunctionNode): Statement[] => {
   switch (fn.type) {
     case "ArrowFunctionExpression":
@@ -71,6 +82,13 @@ const getFunctionStatements = (fn: FunctionNode): Statement[] => {
   }
 };
 
+/**
+ * Analyze a list of statements using backward liveness propagation.
+ *
+ * @param statements Statements to analyze.
+ * @param liveOut Identifiers required after executing the statement list.
+ * @returns Statement analysis containing live-in identifiers and shaken ranges.
+ */
 const analyzeStatements = (
   statements: Statement[],
   liveOut: Set<SourceText>,
@@ -93,6 +111,14 @@ const analyzeStatements = (
   return { liveIn: live, shaken };
 };
 
+/**
+ * Analyze a single statement and update liveness and shake ranges.
+ *
+ * @param statement Statement to analyze.
+ * @param liveOut Identifiers required after executing the statement.
+ * @returns Statement analysis with updated liveness and shaken ranges.
+ * @throws {Error} When an unexpected statement type is encountered.
+ */
 const analyzeStatement = (statement: Statement, liveOut: Set<SourceText>): StatementAnalysis => {
   switch (statement.type) {
     case "ReturnStatement":
@@ -142,6 +168,12 @@ const analyzeStatement = (statement: Statement, liveOut: Set<SourceText>): State
   }
 };
 
+/**
+ * Analyze a return statement as a liveness sink.
+ *
+ * @param statement Return statement to analyze.
+ * @returns Statement analysis with identifiers required by the return value.
+ */
 const analyzeReturnStatement = (statement: ReturnStatement): StatementAnalysis => {
   const liveIn = statement.argument
     ? collectIdentifiersFromExpression(statement.argument)
@@ -153,6 +185,13 @@ const analyzeReturnStatement = (statement: ReturnStatement): StatementAnalysis =
   };
 };
 
+/**
+ * Analyze a variable declaration to decide whether it can be shaken.
+ *
+ * @param statement Variable declaration to analyze.
+ * @param liveOut Identifiers required after the declaration executes.
+ * @returns Statement analysis with updated liveness and shaken ranges.
+ */
 const analyzeVariableDeclaration = (
   statement: VariableDeclaration,
   liveOut: Set<SourceText>,
@@ -176,6 +215,13 @@ const analyzeVariableDeclaration = (
   };
 };
 
+/**
+ * Analyze an expression statement for assignment or yield effects.
+ *
+ * @param statement Expression statement to analyze.
+ * @param liveOut Identifiers required after the expression executes.
+ * @returns Statement analysis with updated liveness and shaken ranges.
+ */
 const analyzeExpressionStatement = (
   statement: ExpressionStatement,
   liveOut: Set<SourceText>,
@@ -207,6 +253,14 @@ const analyzeExpressionStatement = (
   };
 };
 
+/**
+ * Analyze an assignment expression statement for liveness impact.
+ *
+ * @param statement Expression statement containing the assignment.
+ * @param expression Assignment expression to analyze.
+ * @param liveOut Identifiers required after the assignment executes.
+ * @returns Statement analysis with updated liveness and shaken ranges.
+ */
 const analyzeAssignmentExpression = (
   statement: ExpressionStatement,
   expression: AssignmentExpression,
@@ -230,6 +284,14 @@ const analyzeAssignmentExpression = (
   };
 };
 
+/**
+ * Analyze an update expression statement for liveness impact.
+ *
+ * @param statement Expression statement containing the update.
+ * @param expression Update expression to analyze.
+ * @param liveOut Identifiers required after the update executes.
+ * @returns Statement analysis with updated liveness and shaken ranges.
+ */
 const analyzeUpdateExpression = (
   statement: ExpressionStatement,
   expression: UpdateExpression,
@@ -252,6 +314,13 @@ const analyzeUpdateExpression = (
   };
 };
 
+/**
+ * Analyze an if statement by merging liveness from both branches.
+ *
+ * @param statement If statement to analyze.
+ * @param liveOut Identifiers required after the if statement.
+ * @returns Statement analysis with merged liveness and shaken ranges.
+ */
 const analyzeIfStatement = (
   statement: IfStatement,
   liveOut: Set<SourceText>,
@@ -271,11 +340,25 @@ const analyzeIfStatement = (
   return { liveIn, shaken };
 };
 
+/**
+ * Analyze a block statement by analyzing its statement list.
+ *
+ * @param statement Block statement to analyze.
+ * @param liveOut Identifiers required after the block executes.
+ * @returns Statement analysis with updated liveness and shaken ranges.
+ */
 const analyzeBlockStatement = (
   statement: BlockStatement,
   liveOut: Set<SourceText>,
 ): StatementAnalysis => analyzeStatements(statement.body, liveOut);
 
+/**
+ * Conservatively analyze a statement by collecting all identifier uses.
+ *
+ * @param statement Statement to analyze.
+ * @param liveOut Identifiers required after the statement executes.
+ * @returns Statement analysis with updated liveness and shaken ranges.
+ */
 const analyzeOtherStatement = (
   statement: Statement,
   liveOut: Set<SourceText>,
@@ -289,6 +372,12 @@ const analyzeOtherStatement = (
   };
 };
 
+/**
+ * Collect identifiers declared by a variable declaration statement.
+ *
+ * @param statement Variable declaration to inspect.
+ * @returns Set of declared identifier names.
+ */
 const collectDeclarationDefinitions = (statement: VariableDeclaration): Set<SourceText> => {
   const definitions = new Set<SourceText>();
 
@@ -303,6 +392,12 @@ const collectDeclarationDefinitions = (statement: VariableDeclaration): Set<Sour
   return definitions;
 };
 
+/**
+ * Collect identifiers referenced by variable initializers.
+ *
+ * @param statement Variable declaration to inspect.
+ * @returns Set of identifier names referenced by initializers.
+ */
 const collectDeclarationUses = (statement: VariableDeclaration): Set<SourceText> => {
   const uses = new Set<SourceText>();
 
@@ -317,6 +412,12 @@ const collectDeclarationUses = (statement: VariableDeclaration): Set<SourceText>
   return uses;
 };
 
+/**
+ * Collect identifiers referenced by a single declarator initializer.
+ *
+ * @param declarator Variable declarator to inspect.
+ * @returns Set of identifier names referenced by the initializer.
+ */
 const collectDeclaratorUses = (declarator: VariableDeclarator): Set<SourceText> => {
   if (declarator.init === null) {
     return new Set();
@@ -325,6 +426,13 @@ const collectDeclaratorUses = (declarator: VariableDeclarator): Set<SourceText> 
   return collectIdentifiersFromExpression(declarator.init);
 };
 
+/**
+ * Collect identifier names from a binding pattern.
+ *
+ * @param pattern Binding pattern to inspect.
+ * @returns Set of identifier names declared by the pattern.
+ * @throws {Error} When an unexpected binding pattern is encountered.
+ */
 const collectBindingIdentifiers = (pattern: BindingPattern): Set<SourceText> => {
   switch (pattern.type) {
     case "Identifier":
@@ -340,6 +448,12 @@ const collectBindingIdentifiers = (pattern: BindingPattern): Set<SourceText> => 
   }
 };
 
+/**
+ * Collect identifier names from object binding properties.
+ *
+ * @param properties Object binding properties to inspect.
+ * @returns Set of identifier names declared by the object pattern.
+ */
 const collectObjectPatternIdentifiers = (
   properties: Array<BindingProperty | BindingRestElement>,
 ): Set<SourceText> => {
@@ -356,6 +470,13 @@ const collectObjectPatternIdentifiers = (
   return names;
 };
 
+/**
+ * Collect identifier names from a binding property or rest element.
+ *
+ * @param property Binding property or rest element to inspect.
+ * @returns Set of identifier names declared by the property.
+ * @throws {Error} When an unexpected binding property type is encountered.
+ */
 const collectBindingPropertyIdentifiers = (
   property: BindingProperty | BindingRestElement,
 ): Set<SourceText> => {
@@ -369,6 +490,12 @@ const collectBindingPropertyIdentifiers = (
   }
 };
 
+/**
+ * Collect identifier names from array binding elements.
+ *
+ * @param elements Array binding elements to inspect.
+ * @returns Set of identifier names declared by the array pattern.
+ */
 const collectArrayPatternIdentifiers = (
   elements: Array<BindingPattern | BindingRestElement | null>,
 ): Set<SourceText> => {
@@ -389,6 +516,13 @@ const collectArrayPatternIdentifiers = (
   return names;
 };
 
+/**
+ * Collect identifiers from a single array binding element.
+ *
+ * @param element Array binding element to inspect.
+ * @returns Set of identifier names declared by the element.
+ * @throws {Error} When an unexpected binding element type is encountered.
+ */
 const collectBindingPatternElementIdentifiers = (
   element: BindingPattern | BindingRestElement,
 ): Set<SourceText> => {
@@ -405,6 +539,13 @@ const collectBindingPatternElementIdentifiers = (
   }
 };
 
+/**
+ * Collect identifier names from an assignment target.
+ *
+ * @param target Assignment target to inspect.
+ * @returns Set of identifier names defined by the target.
+ * @throws {Error} When an unexpected assignment target is encountered.
+ */
 const collectAssignmentTargetIdentifiers = (target: AssignmentTarget): Set<SourceText> => {
   switch (target.type) {
     case "Identifier":
@@ -424,6 +565,12 @@ const collectAssignmentTargetIdentifiers = (target: AssignmentTarget): Set<Sourc
   }
 };
 
+/**
+ * Collect identifier names from array assignment pattern elements.
+ *
+ * @param elements Array assignment elements to inspect.
+ * @returns Set of identifier names defined by the array assignment pattern.
+ */
 const collectAssignmentArrayPatternIdentifiers = (
   elements: Array<AssignmentTargetMaybeDefault | AssignmentTargetRest | null>,
 ): Set<SourceText> => {
@@ -444,6 +591,13 @@ const collectAssignmentArrayPatternIdentifiers = (
   return names;
 };
 
+/**
+ * Collect identifier names from a single assignment pattern element.
+ *
+ * @param element Assignment element to inspect.
+ * @returns Set of identifier names defined by the element.
+ * @throws {Error} When an unexpected assignment element is encountered.
+ */
 const collectAssignmentElementIdentifiers = (
   element: AssignmentTargetMaybeDefault | AssignmentTargetRest,
 ): Set<SourceText> => {
@@ -466,6 +620,12 @@ const collectAssignmentElementIdentifiers = (
   }
 };
 
+/**
+ * Collect identifier names from object assignment pattern properties.
+ *
+ * @param properties Object assignment properties to inspect.
+ * @returns Set of identifier names defined by the object assignment pattern.
+ */
 const collectAssignmentObjectPatternIdentifiers = (
   properties: Array<AssignmentTargetProperty | AssignmentTargetRest>,
 ): Set<SourceText> => {
@@ -482,6 +642,13 @@ const collectAssignmentObjectPatternIdentifiers = (
   return names;
 };
 
+/**
+ * Collect identifier names from an assignment property or rest element.
+ *
+ * @param property Assignment property or rest element to inspect.
+ * @returns Set of identifier names defined by the property.
+ * @throws {Error} When an unexpected assignment property type is encountered.
+ */
 const collectAssignmentPropertyIdentifiers = (
   property: AssignmentTargetProperty | AssignmentTargetRest,
 ): Set<SourceText> => {
@@ -495,6 +662,13 @@ const collectAssignmentPropertyIdentifiers = (
   }
 };
 
+/**
+ * Collect identifier names from an assignment target with optional defaults.
+ *
+ * @param target Assignment target to inspect.
+ * @returns Set of identifier names defined by the assignment target.
+ * @throws {Error} When an unexpected assignment target is encountered.
+ */
 const collectAssignmentMaybeDefaultIdentifiers = (
   target: AssignmentTargetMaybeDefault,
 ): Set<SourceText> => {
@@ -515,14 +689,32 @@ const collectAssignmentMaybeDefaultIdentifiers = (
   }
 };
 
+/**
+ * Collect identifier names referenced by an expression.
+ *
+ * @param expression Expression to inspect.
+ * @returns Set of identifier names referenced by the expression.
+ */
 const collectIdentifiersFromExpression = (expression: Expression): Set<SourceText> => {
   const statement = buildExpressionStatement(expression);
   return collectIdentifiersFromProgram(buildProgram([statement]));
 };
 
+/**
+ * Collect identifier names referenced by a statement.
+ *
+ * @param statement Statement to inspect.
+ * @returns Set of identifier names referenced by the statement.
+ */
 const collectIdentifiersFromStatement = (statement: Statement): Set<SourceText> =>
   collectIdentifiersFromProgram(buildProgram([statement]));
 
+/**
+ * Collect identifier names referenced within a program node.
+ *
+ * @param program Program node to inspect.
+ * @returns Set of identifier names referenced by the program.
+ */
 const collectIdentifiersFromProgram = (program: Program): Set<SourceText> => {
   const names = new Set<SourceText>();
 
@@ -538,6 +730,12 @@ const collectIdentifiersFromProgram = (program: Program): Set<SourceText> => {
   return names;
 };
 
+/**
+ * Build a synthetic program node for visitation.
+ *
+ * @param body Statement list to include in the program.
+ * @returns Program node containing the provided statements.
+ */
 const buildProgram = (body: Statement[]): Program => {
   let start = 0;
   let end = 0;
@@ -562,6 +760,12 @@ const buildProgram = (body: Statement[]): Program => {
   };
 };
 
+/**
+ * Wrap an expression in a synthetic expression statement.
+ *
+ * @param expression Expression to wrap.
+ * @returns Expression statement node containing the expression.
+ */
 const buildExpressionStatement = (expression: Expression): ExpressionStatement => ({
   type: "ExpressionStatement",
   expression,
@@ -569,17 +773,36 @@ const buildExpressionStatement = (expression: Expression): ExpressionStatement =
   end: expression.end,
 });
 
+/**
+ * Build an offset range from a span-like node.
+ *
+ * @param node Node with start and end offsets.
+ * @returns Offset range covering the node span.
+ */
 const buildRange = (node: { start: number; end: number }): OffsetRange => ({
   start: node.start,
   end: node.end,
 });
 
+/**
+ * Merge all ranges from source into target.
+ *
+ * @param target Set to receive merged ranges.
+ * @param source Set providing ranges to merge.
+ */
 const mergeRanges = (target: Set<OffsetRange>, source: Set<OffsetRange>): void => {
   for (const range of source) {
     target.add(range);
   }
 };
 
+/**
+ * Compute the union of two identifier sets.
+ *
+ * @param left Left-hand set.
+ * @param right Right-hand set.
+ * @returns New set containing values from both inputs.
+ */
 const unionSets = (left: Set<SourceText>, right: Set<SourceText>): Set<SourceText> => {
   const merged = new Set(left);
 
@@ -590,6 +813,13 @@ const unionSets = (left: Set<SourceText>, right: Set<SourceText>): Set<SourceTex
   return merged;
 };
 
+/**
+ * Compute the set difference between two identifier sets.
+ *
+ * @param left Left-hand set.
+ * @param right Right-hand set of values to remove.
+ * @returns New set containing values from left minus right.
+ */
 const subtractSets = (left: Set<SourceText>, right: Set<SourceText>): Set<SourceText> => {
   const next = new Set(left);
 
@@ -600,6 +830,13 @@ const subtractSets = (left: Set<SourceText>, right: Set<SourceText>): Set<Source
   return next;
 };
 
+/**
+ * Test whether two identifier sets intersect.
+ *
+ * @param left Left-hand set.
+ * @param right Right-hand set.
+ * @returns True when both sets share at least one value.
+ */
 const hasIntersection = (left: Set<SourceText>, right: Set<SourceText>): boolean => {
   for (const value of left) {
     if (right.has(value)) {
