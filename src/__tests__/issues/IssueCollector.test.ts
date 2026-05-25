@@ -29,6 +29,12 @@ const issueKinds: IssueKind[] = [
   "this-call",
 ];
 
+/**
+ * Build a TrackerIssue for the given kind.
+ *
+ * @param kind Issue kind to embed in the TrackerIssue.
+ * @returns TrackerIssue instance for tests.
+ */
 const buildIssue = (kind: IssueKind): TrackerIssue => ({
   kind,
   message,

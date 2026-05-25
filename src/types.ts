@@ -322,11 +322,15 @@ export type ParsedFile = {
 export interface IIssueCollector {
   /**
    * Appends `issue` to the internal list.
+   *
+   * @param issue Issue entry to record.
    */
   readonly add: (issue: TrackerIssue) => void;
 
   /**
    * Returns a shallow copy of all collected issues.
+   *
+   * @returns A new array containing all collected issues.
    */
   readonly getAll: () => TrackerIssue[];
 
@@ -342,6 +346,11 @@ export interface IIssueCollector {
 export interface IEditor {
   /**
    * Applies edits to the provided MagicString in-place.
+   *
+   * @param ms MagicString instance to edit.
+   * @param source Original source text for range calculations.
+   * @param keepRanges Set of ranges that should be preserved.
+   * @param mode Output mode controlling blank vs compact edits.
    */
   readonly apply: (
     ms: MagicString,
@@ -360,6 +369,12 @@ export class StartPointNotFoundError extends Error {
   /** Requested offset range that could not be resolved. */
   readonly requestedRange: OffsetRange;
 
+  /**
+   * Create a start-point-not-found error with the requested range details.
+   *
+   * @param file Absolute path of the file that was searched.
+   * @param requestedRange Start-point range that could not be resolved.
+   */
   constructor(file: AbsolutePath, requestedRange: OffsetRange) {
     super(`Start point not found in ${file}.`);
     this.name = "StartPointNotFoundError";
@@ -377,6 +392,12 @@ export class ParseError extends Error {
   /** Raw parser errors from `oxc-parser`. */
   readonly oxcErrors: unknown[];
 
+  /**
+   * Create a parse error with the raw parser errors attached.
+   *
+   * @param file Absolute path of the file that failed to parse.
+   * @param oxcErrors Raw error list returned by oxc-parser.
+   */
   constructor(file: AbsolutePath, oxcErrors: unknown[]) {
     super(`Parse error in ${file}.`);
     this.name = "ParseError";
@@ -392,6 +413,11 @@ export class CyclicResolutionError extends Error {
   /** Ordered list of absolute paths that form the cycle. */
   readonly cycle: AbsolutePath[];
 
+  /**
+   * Create a cyclic-resolution error with the cycle path.
+   *
+   * @param cycle Ordered list of absolute paths that form the cycle.
+   */
   constructor(cycle: AbsolutePath[]) {
     super("Cyclic resolution detected.");
     this.name = "CyclicResolutionError";

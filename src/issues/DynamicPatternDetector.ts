@@ -46,12 +46,20 @@ export class DynamicPatternDetector {
     "this-call": "included",
   };
 
+  /**
+   * Create a detector that writes issues into the provided collector.
+   *
+   * @param collector Issue collector to receive detected issues.
+   */
   constructor(collector: IIssueCollector) {
     this.collector = collector;
   }
 
   /**
    * Walks the AST subtree and emits issues for detected dynamic patterns.
+   *
+   * @param node Root AST node to scan.
+   * @param file Absolute path of the file being analyzed.
    */
   readonly detect = (node: AstNode, file: AbsolutePath): void => {
     const indirectBindings = new Set<SourceText>();
@@ -116,6 +124,13 @@ export class DynamicPatternDetector {
     walker.visit(node);
   };
 
+  /**
+   * Add a single issue to the collector with resolved metadata.
+   *
+   * @param kind Issue kind to emit.
+   * @param node AST node providing the issue span.
+   * @param file Absolute path of the file containing the issue.
+   */
   private readonly emitIssue = (
     kind: IssueKind,
     node: { start: CharOffset; end: CharOffset },
@@ -134,17 +149,42 @@ export class DynamicPatternDetector {
     });
   };
 
+  /**
+   * Check whether the call expression is a direct eval call.
+   *
+   * @param node Call expression to inspect.
+   * @returns True when the call is `eval(...)`.
+   */
   private readonly isEvalCall = (node: CallExpression): boolean =>
     node.callee.type === "Identifier" && node.callee.name === "eval";
 
+  /**
+   * Check whether the call expression is a this-method call.
+   *
+   * @param node Call expression to inspect.
+   * @returns True when the callee is a member on `this`.
+   */
   private readonly isThisCall = (node: CallExpression): boolean =>
     node.callee.type === "MemberExpression" && node.callee.object.type === "ThisExpression";
 
+  /**
+   * Check whether the call expression is an indirect call via a bound identifier.
+   *
+   * @param node Call expression to inspect.
+   * @param indirectBindings Set of identifiers previously bound to call results.
+   * @returns True when the call targets an indirect binding.
+   */
   private readonly isIndirectCall = (
     node: CallExpression,
     indirectBindings: Set<SourceText>,
   ): boolean => node.callee.type === "Identifier" && indirectBindings.has(node.callee.name);
 
+  /**
+   * Check whether the assignment mutates a prototype property.
+   *
+   * @param node Assignment expression to inspect.
+   * @returns True when the assignment targets `Foo.prototype.*`.
+   */
   private readonly isPrototypeMutation = (node: AssignmentExpression): boolean => {
     if (node.left.type !== "MemberExpression") {
       return false;

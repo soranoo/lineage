@@ -11,6 +11,13 @@ import { IntraFunctionShaker } from "@/shake/IntraFunctionShaker";
 
 const file: AbsolutePath = "/project/src/shake.ts";
 
+/**
+ * Parse the source and return the first function node found.
+ *
+ * @param source Source text containing a function.
+ * @returns First FunctionNode found in the parsed AST.
+ * @throws {Error} When no function node is found.
+ */
 const parseFunction = (source: SourceText): FunctionNode => {
   const parser = new OxcParser();
   const parsed = parser.parse(file, source);
@@ -44,6 +51,13 @@ const parseFunction = (source: SourceText): FunctionNode => {
   return found;
 };
 
+/**
+ * Extract statements from a function body.
+ *
+ * @param fn Function node to inspect.
+ * @returns Statements from the function body, or an empty list for expression bodies.
+ * @throws {Error} When an unexpected function node type is encountered.
+ */
 const getFunctionStatements = (fn: FunctionNode): Statement[] => {
   switch (fn.type) {
     case "ArrowFunctionExpression":
@@ -61,8 +75,20 @@ const getFunctionStatements = (fn: FunctionNode): Statement[] => {
   }
 };
 
+/**
+ * Build a stable key from a range for set comparisons.
+ *
+ * @param range Offset range to convert.
+ * @returns Range key string in "start:end" form.
+ */
 const rangeKey = (range: OffsetRange): string => `${range.start}:${range.end}`;
 
+/**
+ * Assert that two sets of ranges match by value.
+ *
+ * @param actual Actual shaken ranges.
+ * @param expected Expected shaken ranges.
+ */
 const expectShakenRanges = (actual: Set<OffsetRange>, expected: OffsetRange[]): void => {
   const actualKeys = [...actual].map(rangeKey).sort();
   const expectedKeys = expected.map(rangeKey).sort();

@@ -6,12 +6,17 @@ import type { IIssueCollector, TrackerIssue } from "@/types";
 export class IssueCollector implements IIssueCollector {
   private readonly issues: TrackerIssue[];
 
+  /**
+   * Create a new empty issue collector.
+   */
   constructor() {
     this.issues = [];
   }
 
   /**
    * Appends `issue` to the internal list.
+   *
+   * @param issue Issue entry to record.
    */
   readonly add = (issue: TrackerIssue): void => {
     this.issues.push(issue);
@@ -19,6 +24,8 @@ export class IssueCollector implements IIssueCollector {
 
   /**
    * Returns a shallow copy of all collected issues.
+   *
+   * @returns A new array containing all collected issues.
    */
   readonly getAll = (): TrackerIssue[] => [...this.issues];
 

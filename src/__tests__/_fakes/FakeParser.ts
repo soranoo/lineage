@@ -9,12 +9,22 @@ import { ParseError } from "@/types";
 export class FakeParser implements IParser {
   private readonly cache: Map<AbsolutePath, ParsedFile>;
 
+  /**
+   * Create a fake parser with the provided cache.
+   *
+   * @param cache Map of absolute paths to pre-parsed files.
+   */
   constructor(cache: Map<AbsolutePath, ParsedFile>) {
     this.cache = cache;
   }
 
   /**
    * Returns the cached file for `absolutePath` or throws a ParseError.
+   *
+   * @param absolutePath Absolute path of the file to retrieve.
+   * @param _source Source text (unused for fake parser).
+   * @returns Cached ParsedFile for the provided path.
+   * @throws {ParseError} When the path is not in the cache.
    */
   readonly parse = (absolutePath: AbsolutePath, _source: SourceText): ParsedFile => {
     const cached = this.cache.get(absolutePath);
@@ -28,6 +38,8 @@ export class FakeParser implements IParser {
 
   /**
    * Returns the internal cache map.
+   *
+   * @returns Cache map of absolute paths to ParsedFile values.
    */
   readonly getCache = (): Map<AbsolutePath, ParsedFile> => this.cache;
 }

@@ -2,6 +2,12 @@ import type { CharOffset, ColumnNumber, LineNumber, SourceText } from "@/types";
 
 /**
  * Convert a 1-based line/column position to a 0-based character offset.
+ *
+ * @param source Raw source text to compute offsets within.
+ * @param line 1-based line number to convert.
+ * @param col 1-based column number to convert.
+ * @returns 0-based character offset for the given line and column.
+ * @throws {RangeError} When the line or column is out of range.
  */
 export const offsetFromLineCol = (
   source: SourceText,
