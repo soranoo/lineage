@@ -1,9 +1,10 @@
-import type { Program } from "@oxc-project/types";
+import type { ArrowFunctionExpression, Function, Program } from "@oxc-project/types";
 import type MagicString from "magic-string";
 import type { NapiResolveOptions } from "oxc-resolver";
 
 export type { IParser } from "@/parse/Parser";
 export type { IResolver } from "@/resolve/Resolver";
+export type { IShaker } from "@/shake/Shaker";
 
 /**
  * An absolute file system path starting with `/`.
@@ -60,6 +61,11 @@ export type OxcAst = Program;
  * Oxc AST node type accepted by detector and slicer helpers.
  */
 export type AstNode = Program;
+
+/**
+ * Function node accepted by shaker implementations.
+ */
+export type FunctionNode = Function | ArrowFunctionExpression;
 
 /**
  * Options forwarded to `oxc-resolver`.
@@ -328,16 +334,6 @@ export interface IIssueCollector {
    * Clears all collected issues.
    */
   readonly clear: () => void;
-}
-
-/**
- * Shakes unused statements inside a function body.
- */
-export interface IShaker {
-  /**
-   * Returns the set of ranges that should be removed or blanked.
-   */
-  readonly shake: (fn: unknown, source: SourceText) => Set<OffsetRange>;
 }
 
 /**
