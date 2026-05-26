@@ -5,6 +5,7 @@ import type { NapiResolveOptions } from "oxc-resolver";
 export type { IParser } from "@/parse/Parser";
 export type { IResolver } from "@/resolve/Resolver";
 export type { IShaker } from "@/shake/Shaker";
+export type { IEditor } from "@/edit/Editor";
 
 /**
  * An absolute file system path starting with `/`.
@@ -338,26 +339,6 @@ export interface IIssueCollector {
    * Clears all collected issues.
    */
   readonly clear: () => void;
-}
-
-/**
- * Edits a MagicString based on keep/remove ranges.
- */
-export interface IEditor {
-  /**
-   * Applies edits to the provided MagicString in-place.
-   *
-   * @param ms MagicString instance to edit.
-   * @param source Original source text for range calculations.
-   * @param keepRanges Set of ranges that should be preserved.
-   * @param mode Output mode controlling blank vs compact edits.
-   */
-  readonly apply: (
-    ms: MagicString,
-    source: SourceText,
-    keepRanges: Set<OffsetRange>,
-    mode: OutputMode,
-  ) => void;
 }
 
 /**
