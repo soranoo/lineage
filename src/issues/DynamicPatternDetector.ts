@@ -1,5 +1,3 @@
-import { Visitor } from "oxc-parser";
-import type { VisitorObject } from "oxc-parser";
 import type { AssignmentExpression, CallExpression } from "@oxc-project/types";
 
 import type {
@@ -13,6 +11,8 @@ import type {
   OffsetRange,
   SourceText,
 } from "@/types";
+
+import { walkAst } from "@/helpers/ast-walker";
 
 /**
  * Detects dynamic patterns that require conservative handling.
@@ -64,64 +64,72 @@ export class DynamicPatternDetector {
   readonly detect = (node: AstNode, file: AbsolutePath): void => {
     const indirectBindings = new Set<SourceText>();
 
-    const visitor: VisitorObject = {
-      VariableDeclarator: (current) => {
-        if (current.id.type !== "Identifier") {
+    walkAst(node, (current) => {
+      switch (current.type) {
+        case "VariableDeclarator": {
+          if (current.id.type !== "Identifier") {
+            return;
+          }
+
+          if (current.init === null || current.init.type !== "CallExpression") {
+            return;
+          }
+
+          indirectBindings.add(current.id.name);
           return;
         }
+        case "AssignmentExpression": {
+          if (
+            current.operator === "=" &&
+            current.left.type === "Identifier" &&
+            current.right.type === "CallExpression"
+          ) {
+            indirectBindings.add(current.left.name);
+          }
 
-        if (current.init === null || current.init.type !== "CallExpression") {
+          if (this.isPrototypeMutation(current)) {
+            this.emitIssue("prototype-mutation", current, file);
+          }
           return;
         }
+        case "CallExpression": {
+          if (this.isEvalCall(current)) {
+            this.emitIssue("eval", current, file);
+          }
 
-        indirectBindings.add(current.id.name);
-      },
-      AssignmentExpression: (current) => {
-        if (
-          current.operator === "=" &&
-          current.left.type === "Identifier" &&
-          current.right.type === "CallExpression"
-        ) {
-          indirectBindings.add(current.left.name);
-        }
+          if (this.isThisCall(current)) {
+            this.emitIssue("this-call", current, file);
+          }
 
-        if (this.isPrototypeMutation(current)) {
-          this.emitIssue("prototype-mutation", current, file);
+          if (this.isIndirectCall(current, indirectBindings)) {
+            this.emitIssue("indirect-call", current, file);
+          }
+          return;
         }
-      },
-      CallExpression: (current) => {
-        if (this.isEvalCall(current)) {
-          this.emitIssue("eval", current, file);
+        case "MemberExpression": {
+          if (current.computed) {
+            this.emitIssue("computed-property", current, file);
+          }
+          return;
         }
-
-        if (this.isThisCall(current)) {
-          this.emitIssue("this-call", current, file);
+        case "ImportExpression": {
+          this.emitIssue("dynamic-import", current, file);
+          return;
         }
-
-        if (this.isIndirectCall(current, indirectBindings)) {
-          this.emitIssue("indirect-call", current, file);
+        case "Identifier": {
+          if (current.name === "arguments") {
+            this.emitIssue("arguments-object", current, file);
+          }
+          return;
         }
-      },
-      MemberExpression: (current) => {
-        if (current.computed) {
-          this.emitIssue("computed-property", current, file);
+        case "RestElement": {
+          this.emitIssue("rest-spread-unknown", current, file);
+          return;
         }
-      },
-      ImportExpression: (current) => {
-        this.emitIssue("dynamic-import", current, file);
-      },
-      Identifier: (current) => {
-        if (current.name === "arguments") {
-          this.emitIssue("arguments-object", current, file);
-        }
-      },
-      RestElement: (current) => {
-        this.emitIssue("rest-spread-unknown", current, file);
-      },
-    };
-
-    const walker = new Visitor(visitor);
-    walker.visit(node);
+        default:
+          return;
+      }
+    });
   };
 
   /**
