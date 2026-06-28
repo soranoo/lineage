@@ -1,9 +1,4 @@
-import type {
-  ArrowFunctionExpression,
-  Function,
-  Node,
-  Program,
-} from "@oxc-project/types";
+import type { ArrowFunctionExpression, Function, Node, Program } from "@oxc-project/types";
 import type MagicString from "magic-string";
 import type { NapiResolveOptions } from "oxc-resolver";
 
@@ -76,11 +71,10 @@ export type AstNode = Node;
 /**
  * AST nodes that are valid slice seed statements or expressions.
  */
-export type SeedNode =
-  AstNode & {
-    /** Supported seed node discriminants. */
-    type: "ReturnStatement" | "VariableDeclaration" | "ExpressionStatement" | "AssignmentExpression";
-  };
+export type SeedNode = AstNode & {
+  /** Supported seed node discriminants. */
+  type: "ReturnStatement" | "VariableDeclaration" | "ExpressionStatement" | "AssignmentExpression";
+};
 
 /**
  * Function node accepted by shaker implementations.

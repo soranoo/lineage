@@ -109,8 +109,12 @@ const buildNodeId = (file: AbsolutePath, range: OffsetRange): SourceText =>
  * @param kind Edge kind to match.
  * @returns True when a matching edge exists.
  */
-const hasEdge = (edges: DependencyEdge[], fromId: SourceText, toId: SourceText, kind: SourceText): boolean =>
-  edges.some((edge) => edge.from === fromId && edge.to === toId && edge.kind === kind);
+const hasEdge = (
+  edges: DependencyEdge[],
+  fromId: SourceText,
+  toId: SourceText,
+  kind: SourceText,
+): boolean => edges.some((edge) => edge.from === fromId && edge.to === toId && edge.kind === kind);
 
 /**
  * Check whether a node is a return statement.
@@ -251,7 +255,12 @@ describe("OxcParser + BackwardSlicer", () => {
       throw new Error("Expected parameters not found");
     }
 
-    if (!isAstNode(paramC) || !isAstNode(paramDOfB) || !isAstNode(paramDOfC) || !isAstNode(paramEOfC)) {
+    if (
+      !isAstNode(paramC) ||
+      !isAstNode(paramDOfB) ||
+      !isAstNode(paramDOfC) ||
+      !isAstNode(paramEOfC)
+    ) {
       throw new Error("Expected parameter nodes to be AST nodes");
     }
 

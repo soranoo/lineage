@@ -247,9 +247,10 @@ const findSeedNode = (
     }
   }
 
-  const subExprRange = innerNode.start === selectedSeedNode.start && innerNode.end === selectedSeedNode.end
-    ? null
-    : { start: innerNode.start, end: innerNode.end };
+  const subExprRange =
+    innerNode.start === selectedSeedNode.start && innerNode.end === selectedSeedNode.end
+      ? null
+      : { start: innerNode.start, end: innerNode.end };
 
   return { seedNode: selectedSeedNode, subExprRange };
 };
@@ -590,18 +591,20 @@ const findExportedBinding = (
           continue;
         }
 
-        const exported = specifier.exported.type === "Identifier"
-          ? specifier.exported.name
-          : specifier.exported.type === "Literal" && typeof specifier.exported.value === "string"
-            ? specifier.exported.value
-            : null;
+        const exported =
+          specifier.exported.type === "Identifier"
+            ? specifier.exported.name
+            : specifier.exported.type === "Literal" && typeof specifier.exported.value === "string"
+              ? specifier.exported.value
+              : null;
 
         if (exported === exportedName) {
-          const localName = specifier.local.type === "Identifier"
-            ? specifier.local.name
-            : specifier.local.type === "Literal" && typeof specifier.local.value === "string"
-              ? specifier.local.value
-              : null;
+          const localName =
+            specifier.local.type === "Identifier"
+              ? specifier.local.name
+              : specifier.local.type === "Literal" && typeof specifier.local.value === "string"
+                ? specifier.local.value
+                : null;
 
           if (!localName) {
             continue;
@@ -658,10 +661,7 @@ const getImportSpecifierName = (specifier: AstNode): SourceText | null => {
  * @param localName Local binding name used in the file.
  * @returns Imported name or null when not found.
  */
-const findImportBindingName = (
-  importNode: AstNode,
-  localName: SourceText,
-): SourceText | null => {
+const findImportBindingName = (importNode: AstNode, localName: SourceText): SourceText | null => {
   if (importNode.type !== "ImportDeclaration") {
     return null;
   }
@@ -736,7 +736,10 @@ const emitIssue = (
  * @param scopeKind Scope classification for the node.
  * @returns Binding kind classification.
  */
-const classifyBinding = (node: AstNode, scopeKind: "program" | "function" | "block"): BindingKind => {
+const classifyBinding = (
+  node: AstNode,
+  scopeKind: "program" | "function" | "block",
+): BindingKind => {
   if (node.type === "ImportDeclaration") {
     return "import-resolved";
   }
@@ -833,10 +836,7 @@ export class BackwardSlicer {
         if (shaken && !existing.shaken) {
           existing.shaken = true;
         }
-        if (
-          existing.kind !== kind &&
-          (kind === "ignored-leaf" || kind === "unresolved-leaf")
-        ) {
+        if (existing.kind !== kind && (kind === "ignored-leaf" || kind === "unresolved-leaf")) {
           existing.kind = kind;
         }
         return existing;
@@ -954,7 +954,10 @@ export class BackwardSlicer {
           continue;
         }
 
-        if (statement.type === "ExpressionStatement" && statement.expression.type === "CallExpression") {
+        if (
+          statement.type === "ExpressionStatement" &&
+          statement.expression.type === "CallExpression"
+        ) {
           addNode(statement, file, "call-site", true, source);
         }
       }
@@ -1158,7 +1161,12 @@ export class BackwardSlicer {
         (isFunctionNode(ownerScopeNode) &&
           findEnclosingFunction(parsedFiles.get(file)?.ast ?? ownerScopeNode, ownerScopeNode) !==
             null);
-      const resolvedEdgeKind = resolveEdgeKind(edgeKind, ownerIsNestedScope, ownerScopeNode, resolvedScopeNode);
+      const resolvedEdgeKind = resolveEdgeKind(
+        edgeKind,
+        ownerIsNestedScope,
+        ownerScopeNode,
+        resolvedScopeNode,
+      );
       addEdge(ownerNodeId, variableNode.id, resolvedEdgeKind);
 
       if (visited.has(variableNode.id)) {
@@ -1221,7 +1229,12 @@ export class BackwardSlicer {
         (isFunctionNode(ownerScopeNode) &&
           findEnclosingFunction(parsedFiles.get(file)?.ast ?? ownerScopeNode, ownerScopeNode) !==
             null);
-      const resolvedEdgeKind = resolveEdgeKind(edgeKind, ownerIsNestedScope, ownerScopeNode, resolvedScopeNode);
+      const resolvedEdgeKind = resolveEdgeKind(
+        edgeKind,
+        ownerIsNestedScope,
+        ownerScopeNode,
+        resolvedScopeNode,
+      );
       addEdge(ownerNodeId, parameterNode.id, resolvedEdgeKind);
 
       if (!visited.has(parameterNode.id)) {
@@ -1285,16 +1298,38 @@ export class BackwardSlicer {
             const nextResult = this.resolver.resolve(lookup.source, targetFile);
 
             if (nextResult.kind !== "resolved") {
-              emitIssue(this.collector, "unresolved-dependency", rangeFromNode(lookup.node), targetFile);
-              handleResolvedNode(lookup.node, targetFile, targetParsed.source, "unresolved-leaf", false);
+              emitIssue(
+                this.collector,
+                "unresolved-dependency",
+                rangeFromNode(lookup.node),
+                targetFile,
+              );
+              handleResolvedNode(
+                lookup.node,
+                targetFile,
+                targetParsed.source,
+                "unresolved-leaf",
+                false,
+              );
               return importDependency;
             }
 
             const nextParsed = parsedFiles.get(nextResult.absolutePath);
 
             if (!nextParsed) {
-              emitIssue(this.collector, "unresolved-dependency", rangeFromNode(lookup.node), targetFile);
-              handleResolvedNode(lookup.node, targetFile, targetParsed.source, "unresolved-leaf", false);
+              emitIssue(
+                this.collector,
+                "unresolved-dependency",
+                rangeFromNode(lookup.node),
+                targetFile,
+              );
+              handleResolvedNode(
+                lookup.node,
+                targetFile,
+                targetParsed.source,
+                "unresolved-leaf",
+                false,
+              );
               return importDependency;
             }
 
@@ -1379,7 +1414,13 @@ export class BackwardSlicer {
           return importDependency;
         }
         case "ignored": {
-          emitIssue(this.collector, "ignored-path", rangeFromNode(importNode), file, result.matchedPattern);
+          emitIssue(
+            this.collector,
+            "ignored-path",
+            rangeFromNode(importNode),
+            file,
+            result.matchedPattern,
+          );
           handleResolvedNode(importNode, file, source, "ignored-leaf", false);
           return importDependency;
         }
@@ -1429,8 +1470,8 @@ export class BackwardSlicer {
     }
 
     const seedNames = new Set(this.seedExpander.expand(seedNode, subExprRange));
-    const seedDependencies = collectIdentifierDependencies(seedNode, subExprRange, true).filter((dep) =>
-      seedNames.has(dep.name),
+    const seedDependencies = collectIdentifierDependencies(seedNode, subExprRange, true).filter(
+      (dep) => seedNames.has(dep.name),
     );
 
     for (const dependency of seedDependencies) {
@@ -1471,7 +1512,13 @@ export class BackwardSlicer {
       const resolved = bindingResolver.resolveWithScope(item.name, item.scopeNode, parsedFile);
 
       if (!resolved) {
-        processUnresolved(item.referenceNode, item.file, parsedFile.source, item.ownerNodeId, item.edgeKind);
+        processUnresolved(
+          item.referenceNode,
+          item.file,
+          parsedFile.source,
+          item.ownerNodeId,
+          item.edgeKind,
+        );
         continue;
       }
 
@@ -1538,7 +1585,13 @@ export class BackwardSlicer {
           break;
         }
         case "global-missing": {
-          processUnresolved(item.referenceNode, item.file, parsedFile.source, item.ownerNodeId, item.edgeKind);
+          processUnresolved(
+            item.referenceNode,
+            item.file,
+            parsedFile.source,
+            item.ownerNodeId,
+            item.edgeKind,
+          );
           break;
         }
         case "import-ignored":
