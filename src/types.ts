@@ -1,4 +1,9 @@
-import type { ArrowFunctionExpression, Function, Program } from "@oxc-project/types";
+import type {
+  ArrowFunctionExpression,
+  Function,
+  Node,
+  Program,
+} from "@oxc-project/types";
 import type MagicString from "magic-string";
 import type { NapiResolveOptions } from "oxc-resolver";
 
@@ -34,6 +39,11 @@ export type LineNumber = number;
 export type ColumnNumber = number;
 
 /**
+ * Zero-based index of a parameter in a function signature.
+ */
+export type ParameterIndex = number;
+
+/**
  * One entry from `TrackerConfig.ignorePatterns`.
  */
 export type IgnorePattern = string | RegExp;
@@ -61,7 +71,16 @@ export type OxcAst = Program;
 /**
  * Oxc AST node type accepted by detector and slicer helpers.
  */
-export type AstNode = Program;
+export type AstNode = Node;
+
+/**
+ * AST nodes that are valid slice seed statements or expressions.
+ */
+export type SeedNode =
+  AstNode & {
+    /** Supported seed node discriminants. */
+    type: "ReturnStatement" | "VariableDeclaration" | "ExpressionStatement" | "AssignmentExpression";
+  };
 
 /**
  * Function node accepted by shaker implementations.
@@ -158,6 +177,18 @@ export type TrackResult = {
 };
 
 /**
+ * Slice result produced by the backward slicer before assembly.
+ */
+export type SliceResult = {
+  /** Flat list of dependency nodes across all files. */
+  nodes: DependencyNode[];
+  /** Directed dependency edges between nodes. */
+  edges: DependencyEdge[];
+  /** Visited node IDs to prevent reprocessing. */
+  visitedRanges: Set<NodeId>;
+};
+
+/**
  * Sliced representation of a single file.
  */
 export type SlicedFile = {
@@ -211,6 +242,29 @@ export type DependencyKind =
   | "ignored-leaf"
   /** A binding that could not be resolved. */
   | "unresolved-leaf";
+
+/**
+ * Worklist classification for binding resolution in the slicer.
+ */
+export type BindingKind =
+  /** A local variable binding inside a function or block scope. */
+  | "local-variable"
+  /** A function declaration or expression binding. */
+  | "function"
+  /** A parameter binding inside a function signature. */
+  | "parameter"
+  /** An import specifier resolved to a project file. */
+  | "import-resolved"
+  /** An import specifier resolved to an ignored file. */
+  | "import-ignored"
+  /** An import specifier that failed to resolve. */
+  | "import-failed"
+  /** A module-scope (global) declaration was found. */
+  | "global-found"
+  /** A module-scope (global) declaration was missing. */
+  | "global-missing"
+  /** A re-export specifier to follow to its source file. */
+  | "re-export";
 
 /**
  * Directed edge between dependency nodes.
