@@ -1,12 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type {
-  AbsolutePath,
-  AstNode,
-  OffsetRange,
-  ParsedFile,
-  SourceText,
-} from "@/types";
+import type { AbsolutePath, AstNode, OffsetRange, ParsedFile, SourceText } from "@/types";
 import type {
   AssignmentExpression,
   CallExpression,
@@ -66,7 +60,8 @@ const findNode = <T extends AstNode>(
  * @param node AST node to inspect.
  * @returns True when the node is a return statement.
  */
-const isReturnStatement = (node: AstNode): node is ReturnStatement => node.type === "ReturnStatement";
+const isReturnStatement = (node: AstNode): node is ReturnStatement =>
+  node.type === "ReturnStatement";
 
 /**
  * Check whether a return statement returns a call to the given callee.
@@ -161,7 +156,9 @@ describe("SeedExpander", () => {
   });
 
   it("expands a variable declaration", () => {
-    const parsed = parseSource("const base = 1; const multiplier = 2; const result = base * multiplier;");
+    const parsed = parseSource(
+      "const base = 1; const multiplier = 2; const result = base * multiplier;",
+    );
     const seedNode = findNode(
       parsed.ast,
       isVariableDeclarationNamed("result"),
@@ -205,13 +202,19 @@ describe("SeedExpander", () => {
   });
 
   it("honors a sub-expression range inside a statement", () => {
-    const parsed = parseSource("const a = 1; const b = 2; const c = 3; const result = (a + b) * transform(c);");
+    const parsed = parseSource(
+      "const a = 1; const b = 2; const c = 3; const result = (a + b) * transform(c);",
+    );
     const seedNode = findNode(
       parsed.ast,
       isVariableDeclarationNamed("result"),
       "VariableDeclaration not found",
     );
-    const callNode = findNode(parsed.ast, isCallExpressionNamed("transform"), "CallExpression not found");
+    const callNode = findNode(
+      parsed.ast,
+      isCallExpressionNamed("transform"),
+      "CallExpression not found",
+    );
     const expander = new SeedExpander();
 
     const bindings = expander.expand(seedNode, toRange(callNode));

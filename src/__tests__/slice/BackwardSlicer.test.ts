@@ -131,8 +131,12 @@ const buildNodeId = (file: AbsolutePath, range: OffsetRange): SourceText =>
  * @param kind Edge kind to match.
  * @returns True when a matching edge exists.
  */
-const hasEdge = (edges: DependencyEdge[], fromId: SourceText, toId: SourceText, kind: SourceText): boolean =>
-  edges.some((edge) => edge.from === fromId && edge.to === toId && edge.kind === kind);
+const hasEdge = (
+  edges: DependencyEdge[],
+  fromId: SourceText,
+  toId: SourceText,
+  kind: SourceText,
+): boolean => edges.some((edge) => edge.from === fromId && edge.to === toId && edge.kind === kind);
 
 /**
  * Check whether a node is a return statement.
@@ -276,13 +280,17 @@ describe("BackwardSlicer", () => {
     expect(localNode.id).toBe(
       buildNodeId(
         entryFile,
-        toRange(findNode(parsed.ast, isVariableDeclaratorNamed("local"), "Local declarator not found")),
+        toRange(
+          findNode(parsed.ast, isVariableDeclaratorNamed("local"), "Local declarator not found"),
+        ),
       ),
     );
     expect(globalNode.id).toBe(
       buildNodeId(
         entryFile,
-        toRange(findNode(parsed.ast, isVariableDeclaratorNamed("base"), "Base declarator not found")),
+        toRange(
+          findNode(parsed.ast, isVariableDeclaratorNamed("base"), "Base declarator not found"),
+        ),
       ),
     );
     expect(startNode.id).toBe(buildNodeId(entryFile, startPoint));
@@ -348,7 +356,11 @@ describe("BackwardSlicer", () => {
       throw new Error("Parsed file missing");
     }
 
-    const startNodeAst = findNode(parsed.ast, isVariableDeclarationNamed("result"), "Result declaration not found");
+    const startNodeAst = findNode(
+      parsed.ast,
+      isVariableDeclarationNamed("result"),
+      "Result declaration not found",
+    );
     const startPoint = toRange(startNodeAst);
     const { slicer } = createSlicer(parsedFiles, new Map());
 
@@ -389,7 +401,11 @@ describe("BackwardSlicer", () => {
       throw new Error("Parsed file missing");
     }
 
-    const startNodeAst = findNode(parsed.ast, isVariableDeclarationNamed("result"), "Result declaration not found");
+    const startNodeAst = findNode(
+      parsed.ast,
+      isVariableDeclarationNamed("result"),
+      "Result declaration not found",
+    );
     const startPoint = toRange(startNodeAst);
     const resolverMap = new Map<SourceText, ResolveResult>([
       ["./math", { kind: "resolved", absolutePath: mathFile }],
@@ -420,7 +436,8 @@ describe("BackwardSlicer", () => {
 
   it("emits ignored-path issues for ignored imports", () => {
     const entryFile: AbsolutePath = "/project/src/main.ts";
-    const source = "import { schema } from './generated/schema'; const result = schema.parse(input);";
+    const source =
+      "import { schema } from './generated/schema'; const result = schema.parse(input);";
     const parsedFiles = buildParsedFiles([{ file: entryFile, source }]);
     const parsed = parsedFiles.get(entryFile);
 
@@ -428,7 +445,11 @@ describe("BackwardSlicer", () => {
       throw new Error("Parsed file missing");
     }
 
-    const startNodeAst = findNode(parsed.ast, isVariableDeclarationNamed("result"), "Result declaration not found");
+    const startNodeAst = findNode(
+      parsed.ast,
+      isVariableDeclarationNamed("result"),
+      "Result declaration not found",
+    );
     const startPoint = toRange(startNodeAst);
     const resolverMap = new Map<SourceText, ResolveResult>([
       [
@@ -465,11 +486,13 @@ describe("BackwardSlicer", () => {
       throw new Error("Parsed file missing");
     }
 
-    const startNodeAst = findNode(parsed.ast, isVariableDeclarationNamed("result"), "Result declaration not found");
+    const startNodeAst = findNode(
+      parsed.ast,
+      isVariableDeclarationNamed("result"),
+      "Result declaration not found",
+    );
     const startPoint = toRange(startNodeAst);
-    const resolverMap = new Map<SourceText, ResolveResult>([
-      ["./missing", { kind: "failed" }],
-    ]);
+    const resolverMap = new Map<SourceText, ResolveResult>([["./missing", { kind: "failed" }]]);
     const { slicer, collector } = createSlicer(parsedFiles, resolverMap);
 
     const result = slicer.slice(entryFile, startPoint, parsedFiles);
@@ -514,11 +537,7 @@ describe("BackwardSlicer", () => {
 
   it("skips already visited bindings for circular references", () => {
     const entryFile: AbsolutePath = "/project/src/main.ts";
-    const source = [
-      "const a = b;",
-      "const b = a;",
-      "const result = a;",
-    ].join("\n");
+    const source = ["const a = b;", "const b = a;", "const result = a;"].join("\n");
     const parsedFiles = buildParsedFiles([{ file: entryFile, source }]);
     const parsed = parsedFiles.get(entryFile);
 
@@ -526,7 +545,11 @@ describe("BackwardSlicer", () => {
       throw new Error("Parsed file missing");
     }
 
-    const startNodeAst = findNode(parsed.ast, isVariableDeclarationNamed("result"), "Result declaration not found");
+    const startNodeAst = findNode(
+      parsed.ast,
+      isVariableDeclarationNamed("result"),
+      "Result declaration not found",
+    );
     const startPoint = toRange(startNodeAst);
     const { slicer } = createSlicer(parsedFiles, new Map());
 
@@ -554,7 +577,11 @@ describe("BackwardSlicer", () => {
       throw new Error("Parsed file missing");
     }
 
-    const startNodeAst = findNode(parsed.ast, isVariableDeclarationNamed("label"), "Label declaration not found");
+    const startNodeAst = findNode(
+      parsed.ast,
+      isVariableDeclarationNamed("label"),
+      "Label declaration not found",
+    );
     const startPoint = toRange(startNodeAst);
     const resolverMap = new Map<SourceText, ResolveResult>([
       ["./index", { kind: "resolved", absolutePath: indexFile }],
@@ -566,7 +593,9 @@ describe("BackwardSlicer", () => {
     const result = slicer.slice(entryFile, startPoint, parsedFiles);
 
     expect(result.nodes.some((node) => node.kind === "re-export")).toBe(true);
-    expect(result.nodes.some((node) => node.kind === "function" && node.label.includes("format"))).toBe(true);
+    expect(
+      result.nodes.some((node) => node.kind === "function" && node.label.includes("format")),
+    ).toBe(true);
   });
 
   it("marks closure edges for nested functions", () => {
@@ -587,7 +616,11 @@ describe("BackwardSlicer", () => {
       throw new Error("Parsed file missing");
     }
 
-    const startNodeAst = findNode(parsed.ast, isVariableDeclarationNamed("tax"), "Tax declaration not found");
+    const startNodeAst = findNode(
+      parsed.ast,
+      isVariableDeclarationNamed("tax"),
+      "Tax declaration not found",
+    );
     const startPoint = toRange(startNodeAst);
     const { slicer } = createSlicer(parsedFiles, new Map());
 
@@ -640,7 +673,11 @@ describe("BackwardSlicer", () => {
       throw new Error("Parsed file missing");
     }
 
-    const startNodeAst = findNode(parsed.ast, isVariableDeclarationNamed("result"), "Result declaration not found");
+    const startNodeAst = findNode(
+      parsed.ast,
+      isVariableDeclarationNamed("result"),
+      "Result declaration not found",
+    );
     const startPoint = toRange(startNodeAst);
     const { slicer } = createSlicer(parsedFiles, new Map());
 

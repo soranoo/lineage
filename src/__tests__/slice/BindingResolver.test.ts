@@ -138,7 +138,8 @@ const findIdentifierReference = (root: AstNode, name: SourceText): AstNode => {
  */
 const isFunctionDeclarationNamed =
   (name: SourceText) =>
-  (node: AstNode): boolean => node.type === "FunctionDeclaration" && node.id?.name === name;
+  (node: AstNode): boolean =>
+    node.type === "FunctionDeclaration" && node.id?.name === name;
 
 /**
  * Check whether a node is an import declaration.
@@ -237,7 +238,11 @@ describe("BindingResolver", () => {
   it("resolves import declarations as scope roots", () => {
     const parsed = parseSource("import { format } from './utils'; format('hi');");
     const reference = findIdentifierReference(parsed.ast, "format");
-    const importDeclaration = findNode(parsed.ast, isImportDeclaration, "ImportDeclaration not found");
+    const importDeclaration = findNode(
+      parsed.ast,
+      isImportDeclaration,
+      "ImportDeclaration not found",
+    );
     const resolver = new BindingResolver();
 
     const resolved = resolver.resolve("format", reference, parsed);

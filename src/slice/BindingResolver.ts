@@ -330,6 +330,9 @@ export class BindingResolver {
    * @param parsedFile Parsed file containing the binding.
    * @returns Declaration node or null when not found.
    */
-  readonly resolve = (name: SourceText, scopeNode: AstNode, parsedFile: ParsedFile): AstNode | null =>
-    this.resolveWithScope(name, scopeNode, parsedFile)?.node ?? null;
+  readonly resolve = (
+    name: SourceText,
+    scopeNode: AstNode,
+    parsedFile: ParsedFile,
+  ): AstNode | null => this.resolveWithScope(name, scopeNode, parsedFile)?.node ?? null;
 }

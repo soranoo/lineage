@@ -69,10 +69,7 @@ const isReferenceIdentifier = (node: AstNode, parent: AstNode | null): boolean =
  * @param range Optional sub-expression range to constrain results.
  * @returns Ordered list of unique identifier names.
  */
-const collectIdentifierNames = (
-  root: AstNode,
-  range: OffsetRange | null,
-): SourceText[] => {
+const collectIdentifierNames = (root: AstNode, range: OffsetRange | null): SourceText[] => {
   const names: SourceText[] = [];
   const seen = new Set<SourceText>();
 
