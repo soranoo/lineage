@@ -177,20 +177,19 @@ describe("pipeline fixtures", () => {
   });
 
   it("Ex. 6 re-export chain includes re-export node and ultimate util function", async () => {
-    const result = await trackFixture("cross-file/main.ts", "label = format(\"hello\")");
+    const result = await trackFixture("cross-file/main.ts", 'label = format("hello")');
 
     expect(result.nodes.some((node) => node.kind === "re-export")).toBe(true);
-    expect(hasNodeLabel(result, "format = (value: string): string => value.trim().toUpperCase()"))
-      .toBe(true);
+    expect(
+      hasNodeLabel(result, "format = (value: string): string => value.trim().toUpperCase()"),
+    ).toBe(true);
   });
 
   it("Ex. 7 ignored path emits ignored-path issue with matching custom pattern", async () => {
     const generatedPattern = /generated/;
-    const result = await trackFixture(
-      "ignored-path/main.ts",
-      "parsed = schemaValue + input",
-      [generatedPattern],
-    );
+    const result = await trackFixture("ignored-path/main.ts", "parsed = schemaValue + input", [
+      generatedPattern,
+    ]);
 
     const ignoredIssue = findIssue(result.issues, "ignored-path");
 
@@ -208,7 +207,10 @@ describe("pipeline fixtures", () => {
   });
 
   it("Ex. 9 unresolved dependency emits unresolved leaf and issue", async () => {
-    const result = await trackFixture("unresolved/main.ts", "unresolvedResult = missingTransform(value)");
+    const result = await trackFixture(
+      "unresolved/main.ts",
+      "unresolvedResult = missingTransform(value)",
+    );
 
     expect(findIssue(result.issues, "unresolved-dependency")).toBeDefined();
     expect(result.nodes.some((node) => node.kind === "unresolved-leaf")).toBe(true);
@@ -231,7 +233,7 @@ describe("pipeline fixtures", () => {
   it("Ex. 12 dynamic import emits dynamic-import issue", async () => {
     const result = await trackFixture(
       "dynamic-patterns/dynamic-import.ts",
-      "dynamicImportResult = import(\"./module.ts\")",
+      'dynamicImportResult = import("./module.ts")',
     );
 
     expect(findIssue(result.issues, "dynamic-import")).toBeDefined();
@@ -244,10 +246,7 @@ describe("pipeline fixtures", () => {
   });
 
   it("Ex. 14 indirect call emits indirect-call issue", async () => {
-    const result = await trackFixture(
-      "dynamic-patterns/indirect-call.ts",
-      "indirectResult = f()",
-    );
+    const result = await trackFixture("dynamic-patterns/indirect-call.ts", "indirectResult = f()");
 
     expect(findIssue(result.issues, "indirect-call")).toBeDefined();
   });
@@ -271,7 +270,10 @@ describe("pipeline fixtures", () => {
   });
 
   it("Ex. 17 class method fixture emits this-call and includes constructor/add nodes", async () => {
-    const result = await trackFixture("class-async-circular/class.ts", "classResult = calculator.add(2)");
+    const result = await trackFixture(
+      "class-async-circular/class.ts",
+      "classResult = calculator.add(2)",
+    );
 
     expect(findIssue(result.issues, "this-call")).toBeDefined();
     expect(hasNodeLabel(result, "constructor(start: number)")).toBe(true);
