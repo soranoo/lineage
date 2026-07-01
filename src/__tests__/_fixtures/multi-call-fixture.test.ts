@@ -56,11 +56,17 @@ describe("multi-call fixture", () => {
 
     const unresolvedPath = toFixturePath("unresolved/main.ts");
     const unresolvedSource = readFixtureSource("unresolved/main.ts");
-    const firstStart = rangeForFragment(unresolvedSource, "unresolvedResult = missingTransform(value)");
+    const firstStart = rangeForFragment(
+      unresolvedSource,
+      "unresolvedResult = missingTransform(value)",
+    );
     const secondStart = rangeForFragment(unresolvedSource, "const value = 2;");
 
     const firstResult = await tracker.track({ entryFile: unresolvedPath, startPoint: firstStart });
-    const secondResult = await tracker.track({ entryFile: unresolvedPath, startPoint: secondStart });
+    const secondResult = await tracker.track({
+      entryFile: unresolvedPath,
+      startPoint: secondStart,
+    });
 
     expect(parser.getCache().size).toBe(1);
     expect(firstResult.issues.some((issue) => issue.kind === "unresolved-dependency")).toBe(true);
