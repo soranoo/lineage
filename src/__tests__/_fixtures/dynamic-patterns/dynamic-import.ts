@@ -1,0 +1,1 @@
+export const dynamicImportResult = import("./module.ts");

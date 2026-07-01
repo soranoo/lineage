@@ -186,10 +186,7 @@ const requireFixturePath = (fixture: FixtureContext, relativePath: SourceText): 
  * @returns Source text for the fixture path.
  * @throws {Error} When no source exists for the path.
  */
-const requireFixtureSource = (
-  fixture: FixtureContext,
-  absolutePath: AbsolutePath,
-): SourceText => {
+const requireFixtureSource = (fixture: FixtureContext, absolutePath: AbsolutePath): SourceText => {
   const source = fixture.sourcesByPath.get(absolutePath);
 
   if (source === undefined) {
@@ -242,9 +239,8 @@ const findRangeForFragment = (source: SourceText, fragment: SourceText): OffsetR
  * @param value Unknown export value to validate.
  * @returns True when the value is callable as a constructor.
  */
-const isDependencyTrackerConstructor = (
-  value: unknown,
-): value is DependencyTrackerConstructor => typeof value === "function";
+const isDependencyTrackerConstructor = (value: unknown): value is DependencyTrackerConstructor =>
+  typeof value === "function";
 
 /**
  * Load the DependencyTracker constructor from the tracker module export.
@@ -349,9 +345,10 @@ describe("DependencyTracker", () => {
     const fixture = createFixtureContext([
       {
         relativePath: "unresolved.ts",
-        source: ["import { missing } from './missing.ts';", "export const result = missing();"].join(
-          "\n",
-        ),
+        source: [
+          "import { missing } from './missing.ts';",
+          "export const result = missing();",
+        ].join("\n"),
       },
       {
         relativePath: "clean.ts",
@@ -450,11 +447,7 @@ describe("DependencyTracker", () => {
     const fixture = createFixtureContext([
       {
         relativePath: "entry.ts",
-        source: [
-          "const used = 1;",
-          "const dropped = 2;",
-          "export const result = used;",
-        ].join("\n"),
+        source: ["const used = 1;", "const dropped = 2;", "export const result = used;"].join("\n"),
       },
     ]);
 
@@ -516,7 +509,9 @@ describe("DependencyTracker", () => {
       const ignoredIssue = result.issues.find((issue) => issue.kind === "ignored-path");
 
       if (!ignoredIssue) {
-        throw new Error("Expected ignored-path issue when ignorePatterns match resolved import path.");
+        throw new Error(
+          "Expected ignored-path issue when ignorePatterns match resolved import path.",
+        );
       }
 
       expect(ignoredIssue.matchedPattern).toBe("generated");
