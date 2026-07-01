@@ -752,6 +752,10 @@ const classifyBinding = (
     return scopeKind === "program" ? "global-found" : "local-variable";
   }
 
+  if (node.type === "ClassDeclaration") {
+    return "global-found";
+  }
+
   if (node.type === "Identifier") {
     return "parameter";
   }
@@ -1201,6 +1205,79 @@ export class BackwardSlicer {
     };
 
     /**
+     * Process a resolved class declaration and include class method nodes.
+     *
+     * @param classNode Class declaration node.
+     * @param file Absolute file path containing the class.
+     * @param source Source text for label extraction.
+     * @param ownerNodeId Owning dependency node ID.
+     * @param edgeKind Edge kind linking owner to class.
+     * @param ownerIsNestedFunction Whether the owner is a nested function.
+     * @param ownerScopeNode Scope node for the owner.
+     * @param resolvedScopeNode Scope node for the class declaration.
+     * @returns Dependency node representing the class declaration.
+     */
+    const processResolvedClass = (
+      classNode: AstNode,
+      file: AbsolutePath,
+      source: SourceText,
+      ownerNodeId: NodeId,
+      edgeKind: EdgeKind,
+      ownerIsNestedFunction: boolean,
+      ownerScopeNode: AstNode,
+      resolvedScopeNode: AstNode,
+    ): DependencyNode => {
+      const classDependency = handleResolvedNode(classNode, file, source, "global", false);
+      const ownerIsNestedScope =
+        ownerIsNestedFunction ||
+        (isFunctionNode(ownerScopeNode) &&
+          findEnclosingFunction(parsedFiles.get(file)?.ast ?? ownerScopeNode, ownerScopeNode) !==
+            null);
+      const resolvedEdgeKind = resolveEdgeKind(
+        edgeKind,
+        ownerIsNestedScope,
+        ownerScopeNode,
+        resolvedScopeNode,
+      );
+      addEdge(ownerNodeId, classDependency.id, resolvedEdgeKind);
+
+      if (visited.has(classDependency.id)) {
+        return classDependency;
+      }
+
+      visited.add(classDependency.id);
+
+      if (classNode.type !== "ClassDeclaration") {
+        return classDependency;
+      }
+
+      for (const element of classNode.body.body) {
+        if (element.type !== "MethodDefinition") {
+          continue;
+        }
+
+        const methodNode = handleResolvedNode(element, file, source, "function", false);
+        addEdge(classDependency.id, methodNode.id, "data-flow");
+
+        if (!isFunctionNode(element.value)) {
+          continue;
+        }
+
+        processResolvedFunction(
+          element.value,
+          file,
+          source,
+          methodNode.id,
+          "data-flow",
+          null,
+          false,
+        );
+      }
+
+      return classDependency;
+    };
+
+    /**
      * Process a resolved parameter binding.
      *
      * @param paramNode Parameter identifier node.
@@ -1527,6 +1604,20 @@ export class BackwardSlicer {
       switch (bindingKind) {
         case "local-variable":
         case "global-found": {
+          if (resolved.node.type === "ClassDeclaration") {
+            processResolvedClass(
+              resolved.node,
+              item.file,
+              parsedFile.source,
+              item.ownerNodeId,
+              item.edgeKind,
+              item.ownerIsNestedFunction,
+              item.scopeNode,
+              resolved.scopeNode,
+            );
+            break;
+          }
+
           const dependencyNode = processResolvedVariable(
             resolved.node,
             resolved.scopeKind,

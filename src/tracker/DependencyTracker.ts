@@ -23,6 +23,7 @@ import type {
 
 import { MagicStringEditor } from "@/edit/MagicStringEditor";
 import { IssueCollector } from "@/issues/IssueCollector";
+import { DynamicPatternDetector } from "@/issues/DynamicPatternDetector";
 import { OxcParser } from "@/parse/OxcParser";
 import { IgnoreFilter } from "@/resolve/IgnoreFilter";
 import { OxcResolver } from "@/resolve/OxcResolver";
@@ -51,7 +52,8 @@ type DependencyTrackerDependencies = {
  * @param absolutePath Absolute file path to read.
  * @returns UTF-8 source text contents of the file.
  */
-const readSourceText = (absolutePath: AbsolutePath): SourceText => readFileSync(absolutePath, "utf8");
+const readSourceText = (absolutePath: AbsolutePath): SourceText =>
+  readFileSync(absolutePath, "utf8");
 
 /**
  * Collect module specifiers declared at module scope for recursive parsing.
@@ -101,6 +103,67 @@ const buildKeepRangeSet = (ranges: OffsetRange[]): Set<OffsetRange> => {
 };
 
 /**
+ * Expand a node range to full line boundaries in source text.
+ *
+ * @param source Source text containing the range.
+ * @param range Node range to expand.
+ * @returns Range expanded to include full line content.
+ */
+const expandRangeToLineBounds = (source: SourceText, range: OffsetRange): OffsetRange => {
+  let start = range.start;
+  while (start > 0 && source[start - 1] !== "\n" && source[start - 1] !== "\r") {
+    start -= 1;
+  }
+
+  let end = range.end;
+  while (end < source.length && source[end] !== "\n" && source[end] !== "\r") {
+    end += 1;
+  }
+
+  return { start, end };
+};
+
+/**
+ * Determine whether a dependency node should contribute to output keep ranges.
+ *
+ * @param node Dependency node to evaluate.
+ * @returns True when the node should preserve output text.
+ */
+const shouldKeepNodeForOutput = (node: DependencyNode): boolean => {
+  switch (node.kind) {
+    case "parameter":
+      return false;
+    case "start-point":
+    case "variable":
+    case "function":
+    case "call-site":
+    case "import":
+    case "global":
+    case "re-export":
+    case "ignored-leaf":
+    case "unresolved-leaf":
+      return true;
+    default:
+      return assertNever(node.kind);
+  }
+};
+
+/**
+ * Convert dependency nodes into output keep ranges.
+ *
+ * @param nodes Dependency nodes from one file.
+ * @param source Source text of the file.
+ * @returns Keep ranges used by the editor.
+ */
+const toOutputKeepRanges = (nodes: DependencyNode[], source: SourceText): Set<OffsetRange> => {
+  const ranges = nodes
+    .filter((node) => node.shaken === false && shouldKeepNodeForOutput(node))
+    .map((node) => expandRangeToLineBounds(source, node.range));
+
+  return buildKeepRangeSet(ranges);
+};
+
+/**
  * Orchestrates parsing, slicing, and source editing for dependency tracking.
  */
 export class DependencyTracker {
@@ -109,6 +172,7 @@ export class DependencyTracker {
   private readonly resolver: IResolver;
   private readonly shaker: IShaker;
   private readonly issueCollector: IIssueCollector;
+  private readonly dynamicPatternDetector: DynamicPatternDetector;
   private readonly editor: IEditor;
   private readonly slicer: BackwardSlicer;
 
@@ -126,6 +190,7 @@ export class DependencyTracker {
     this.resolver = dependencies.resolver ?? new OxcResolver(ignoreFilter, config.resolver);
     this.shaker = dependencies.shaker ?? new IntraFunctionShaker();
     this.issueCollector = dependencies.issueCollector ?? new IssueCollector();
+    this.dynamicPatternDetector = new DynamicPatternDetector(this.issueCollector);
     this.editor = dependencies.editor ?? new MagicStringEditor();
     this.slicer = new BackwardSlicer(this.parser, this.resolver, this.shaker, this.issueCollector);
   }
@@ -140,6 +205,7 @@ export class DependencyTracker {
     this.issueCollector.clear();
 
     const parsedFiles = await this.collectParsedFiles(request.entryFile);
+    this.detectDynamicPatterns(parsedFiles);
     const sliceResult = this.slicer.slice(request.entryFile, request.startPoint, parsedFiles);
     const mode = this.resolveOutputMode(request);
     const files = this.buildSlicedFiles(sliceResult.nodes, parsedFiles, mode);
@@ -179,7 +245,9 @@ export class DependencyTracker {
    * @param entryFile Absolute path of the entry file to parse.
    * @returns Parsed-file map keyed by absolute path.
    */
-  private readonly collectParsedFiles = (entryFile: AbsolutePath): Map<AbsolutePath, ParsedFile> => {
+  private readonly collectParsedFiles = (
+    entryFile: AbsolutePath,
+  ): Map<AbsolutePath, ParsedFile> => {
     const parsedFiles = new Map<AbsolutePath, ParsedFile>();
     const queue: AbsolutePath[] = [entryFile];
 
@@ -195,8 +263,7 @@ export class DependencyTracker {
       }
 
       const cached = this.parsedCache.get(nextFile);
-      const parsedFile =
-        cached ?? this.parser.parse(nextFile, readSourceText(nextFile));
+      const parsedFile = cached ?? this.parser.parse(nextFile, readSourceText(nextFile));
 
       this.parsedCache.set(nextFile, parsedFile);
       parsedFiles.set(nextFile, parsedFile);
@@ -258,9 +325,7 @@ export class DependencyTracker {
         continue;
       }
 
-      const keepRanges = buildKeepRangeSet(
-        fileNodes.filter((node) => node.shaken === false).map((node) => node.range),
-      );
+      const keepRanges = toOutputKeepRanges(fileNodes, parsedFile.source);
       const ms = new MagicString(parsedFile.source);
       this.editor.apply(ms, parsedFile.source, keepRanges, mode);
 
@@ -272,5 +337,16 @@ export class DependencyTracker {
     }
 
     return files;
+  };
+
+  /**
+   * Detect dynamic-pattern issues for all parsed files in the current request.
+   *
+   * @param parsedFiles Parsed files to scan for dynamic patterns.
+   */
+  private readonly detectDynamicPatterns = (parsedFiles: Map<AbsolutePath, ParsedFile>): void => {
+    for (const parsedFile of parsedFiles.values()) {
+      this.dynamicPatternDetector.detect(parsedFile.ast, parsedFile.absolutePath);
+    }
   };
 }
