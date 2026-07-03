@@ -80,6 +80,8 @@ describe("OxcResolver", () => {
 
   it("always ignores node_modules paths", () => {
     const resolver = buildResolver([]);
+
+    // ? We picked a random package installed in node_modules for this test. It should be ignored regardless of the ignore patterns.
     const result = resolver.resolve("assert-never", entryFile);
 
     switch (result.kind) {
