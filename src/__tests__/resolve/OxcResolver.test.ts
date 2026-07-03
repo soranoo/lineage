@@ -80,7 +80,7 @@ describe("OxcResolver", () => {
 
   it("always ignores node_modules paths", () => {
     const resolver = buildResolver([]);
-    const result = resolver.resolve("ignored-pkg", entryFile);
+    const result = resolver.resolve("./node_modules/ignored-pkg/index.js", entryFile);
 
     switch (result.kind) {
       case "ignored":
