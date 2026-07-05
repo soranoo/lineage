@@ -27,7 +27,7 @@ Give me a ⭐ if you like it.
 - [⭐ TODO](#-todo)
 - [🐛 Known Issues](#-known-issues)
 - [🤝 Contributing](#-contributing)
-- [⚠️ Disclaimer](#-disclaimer)
+- [⚠️ Disclaimer](#️-disclaimer)
 - [📝 License](#-license)
 - [☕ Sponsorship](#-sponsorship)
 
