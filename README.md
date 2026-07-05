@@ -27,6 +27,7 @@ Give me a ⭐ if you like it.
 - [⭐ TODO](#-todo)
 - [🐛 Known Issues](#-known-issues)
 - [🤝 Contributing](#-contributing)
+- [⚠️ Disclaimer](#-disclaimer)
 - [📝 License](#-license)
 - [☕ Sponsorship](#-sponsorship)
 
@@ -459,10 +460,20 @@ try {
 
 ## 🤝 Contributing
 
-Contributions are welcome! If you find a bug or have a feature request, please open an issue. If you want to contribute code, please fork the repository and run 
+Contributions are welcome! If you find a bug or have a feature request, please open an issue. If you want to contribute code, please fork the repository and run
 `bun run fmt` & `deno run typecheck` & `deno test` before submitting a pull request.
 
 We are following [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) for commit messages.
+
+## ⚠️ Disclaimer
+
+AI is used to assist in the development of this project, including
+
+- Idea and knowledge reinforcement
+- Inline code completion
+- Code refactoring suggestions
+- Code review and feedback
+- Code generation for boilerplate and repetitive tasks
 
 ## 📝 License
 
