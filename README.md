@@ -656,10 +656,9 @@ try {
 
 ## 🤝 Contributing
 
-Contributions are welcome! If you find a bug or have a feature request, please open an issue. If you want to contribute code, please fork the repository and run
-`bun run fmt` & `deno run typecheck` & `deno test` before submitting a pull request.
+Contributions of all kinds are welcome, bug reports, feature requests, docs fixes, and code changes.
 
-We are following [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) for commit messages.
+See [CONTRIBUTING.md](docs/CONTRIBUTING.md) for the full guide covering development setup, the PR workflow, commit message format, coding standards, and the policy on AI-assisted contributions.
 
 ## ⚠️ Disclaimer
 
