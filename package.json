@@ -1,7 +1,7 @@
 {
-  "name": "lineage",
-  "description": "",
-  "keywords": [],
+  "name": "@soranoo/lineage",
+  "description": "Follow the lineage of any value, across every file.",
+  "keywords": ["dependency graph", "static analysis", "typescript", "javascript"],
   "license": "ISC",
   "author": "soranoo",
   "type": "module",
