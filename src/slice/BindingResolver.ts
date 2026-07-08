@@ -1,4 +1,5 @@
 import { visitorKeys } from "oxc-parser";
+import assertNever from "assert-never";
 
 import type { AstNode, ParsedFile, SourceText } from "@/types";
 
@@ -165,7 +166,7 @@ const registerBindings = (node: AstNode, scopeStack: Scope[]): void => {
             programScope.bindings.set(specifier.local.name, node);
             break;
           default:
-            break;
+            assertNever(specifier);
         }
       }
       return;

@@ -2,7 +2,11 @@
 
 Project starts on 17-05-2026
 
-[![GPL-3.0 License](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE) &nbsp;&nbsp;&nbsp;[![Sponsorship](https://img.shields.io/static/v1?label=Sponsor&message=❤️&style=social)](https://github.com/soranoo/Donation)
+[![CI](https://github.com/soranoo/lineage/actions/workflows/ci.yaml/badge.svg)](https://github.com/soranoo/lineage/actions/workflows/ci.yaml) [![GPL-3.0 License](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE) &nbsp;&nbsp;&nbsp;[![Sponsorship](https://img.shields.io/static/v1?label=Sponsor&message=❤️&style=social)](https://github.com/soranoo/Donation)
+
+<!-- [![banner](./docs/imgs/banner.png)](https://github.com/soranoo/lineage) -->
+
+[![npm version](https://img.shields.io/npm/v/@soranoo/lineage?color=red&style=flat)](https://www.npmjs.com/package/@soranoo/lineage) [![npm downloads](https://img.shields.io/npm/dt/@soranoo/lineage?color=blue&style=flat)](https://www.npmjs.com/package/@soranoo/lineage)
 
 Follow the lineage of any value, across every file.
 

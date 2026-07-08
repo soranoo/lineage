@@ -1,9 +1,12 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
+  "include": ["src/**/*"],
   "compilerOptions": {
     "ignoreDeprecations": "6.0",
     "baseUrl": ".",
     "paths": { "@/*": ["src/*"] },
+    "rootDir": "./src",
+    "outDir": "./dist",
 
     // Environment setup & latest features
     "lib": ["ESNext"],
@@ -18,7 +21,8 @@
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
-    "noEmit": true,
+    "emitDeclarationOnly": true,
+    "declaration": true,
 
     // Best practices
     "strict": true,
