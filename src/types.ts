@@ -132,7 +132,24 @@ export type TrackerConfig = {
    * - `RegExp`: `pattern.test(absolutePath)`
    */
   ignorePatterns?: Array<IgnorePattern>;
+  /**
+   * In-memory source files keyed by virtual absolute path.
+   *
+   * Virtual keys must start with `/`.
+   */
+  virtualFiles?: Record<AbsolutePath, SourceText>;
 };
+
+/**
+ * Resolver dispatch tier used by `VirtualAwareResolver`.
+ */
+export type ResolutionTier =
+  /** Resolved directly from the virtual file map. */
+  | "virtual"
+  /** Blocked by ignore pattern matching before real-file resolution. */
+  | "ignored"
+  /** Delegated to the inner real-file resolver. */
+  | "real";
 
 /**
  * Output configuration for a single tracking request.
@@ -451,5 +468,24 @@ export class CyclicResolutionError extends Error {
     super("Cyclic resolution detected.");
     this.name = "CyclicResolutionError";
     this.cycle = cycle;
+  }
+}
+
+/**
+ * Thrown when a virtual file key is not an absolute virtual path.
+ */
+export class InvalidVirtualPathError extends Error {
+  /** Offending virtual key supplied by the caller. */
+  readonly invalidPath: AbsolutePath;
+
+  /**
+   * Create an invalid-virtual-path error with the offending key.
+   *
+   * @param invalidPath Virtual file key that is not absolute.
+   */
+  constructor(invalidPath: AbsolutePath) {
+    super(`Virtual file path must start with '/': ${invalidPath}`);
+    this.name = "InvalidVirtualPathError";
+    this.invalidPath = invalidPath;
   }
 }
