@@ -27,6 +27,7 @@ import { FakeParser } from "@/__tests__/_fakes/FakeParser";
 import { FakeResolver } from "@/__tests__/_fakes/FakeResolver";
 import { FakeShaker } from "@/__tests__/_fakes/FakeShaker";
 import { StartPointNotFoundError } from "@/types";
+import { InvalidVirtualPathError } from "@/types";
 
 /**
  * Runtime shape expected from a tracker instance.
@@ -518,5 +519,96 @@ describe("DependencyTracker", () => {
     } finally {
       fixture.cleanup();
     }
+  });
+
+  it("uses OxcResolver path when virtualFiles is absent", async () => {
+    const fixture = createFixtureContext([
+      {
+        relativePath: "entry.ts",
+        source: ["import { target } from './target.ts';", "export const result = target;"].join("\n"),
+      },
+      {
+        relativePath: "target.ts",
+        source: "export const target = 42;",
+      },
+    ]);
+
+    try {
+      const entryFile = requireFixturePath(fixture, "entry.ts");
+      const source = requireFixtureSource(fixture, entryFile);
+      const startPoint = findRangeForFragment(source, "result = target");
+      const tracker = await createTracker({});
+
+      const result = await tracker.track({ entryFile, startPoint });
+
+      expect(result.nodes.some((node) => node.file === requireFixturePath(fixture, "target.ts"))).toBe(
+        true,
+      );
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  it("throws InvalidVirtualPathError when a virtual key is not absolute", async () => {
+    await expect(
+      createTracker({
+        virtualFiles: {
+          "relative/file.ts": "export const value = 1;",
+        },
+      }),
+    ).rejects.toThrow(InvalidVirtualPathError);
+  });
+
+  it("tracks virtual entry files without reading disk", async () => {
+    const entrySource = [
+      "import { add } from './math';",
+      "const left = 1;",
+      "const right = 2;",
+      "export const result = add(left, right);",
+    ].join("\n");
+
+    const tracker = await createTracker({
+      virtualFiles: {
+        "/virtual/main.ts": entrySource,
+        "/virtual/math.ts": "export const add = (a: number, b: number): number => a + b;",
+      },
+    });
+
+    const result = await tracker.track({
+      entryFile: "/virtual/main.ts",
+      startPoint: findRangeForFragment(entrySource, "result = add(left, right)"),
+    });
+
+    expect(result.nodes.some((node) => node.file === "/virtual/main.ts")).toBe(true);
+    expect(result.nodes.some((node) => node.file === "/virtual/math.ts")).toBe(true);
+  });
+
+  it("pre-populates and reuses parser cache across repeated virtual calls", async () => {
+    const entrySource = [
+      "import { add } from './math';",
+      "const left = 1;",
+      "const right = 2;",
+      "export const result = add(left, right);",
+    ].join("\n");
+
+    const parser = new OxcParser();
+    const tracker = await createTracker(
+      {
+        virtualFiles: {
+          "/virtual/main.ts": entrySource,
+          "/virtual/math.ts": "export const add = (a: number, b: number): number => a + b;",
+        },
+      },
+      { parser },
+    );
+
+    expect(parser.getCache().size).toBe(2);
+
+    const startPoint = findRangeForFragment(entrySource, "result = add(left, right)");
+
+    await tracker.track({ entryFile: "/virtual/main.ts", startPoint });
+    await tracker.track({ entryFile: "/virtual/main.ts", startPoint });
+
+    expect(parser.getCache().size).toBe(2);
   });
 });

@@ -312,6 +312,42 @@ const tracker = new DependencyTracker({
 > [!NOTE]\
 > `node_modules` is always an implicit ignore pattern regardless of what you pass to `ignorePatterns`. You never need to add it manually.
 
+### With virtual files (no disk writes)
+
+```ts
+import { DependencyTracker, offsetFromLineCol } from "@soranoo/lineage";
+
+const entrySource = [
+  "import { add } from './math';",
+  "const left = 1;",
+  "const right = 2;",
+  "export const result = add(left, right);",
+].join("\n");
+
+const tracker = new DependencyTracker({
+  virtualFiles: {
+    "/virtual/main.ts": entrySource,
+    "/virtual/math.ts": "export const add = (a: number, b: number): number => a + b;",
+  },
+});
+
+const start = offsetFromLineCol(entrySource, 4, 14); // "result = add(left, right)"
+const end = offsetFromLineCol(entrySource, 4, 39);
+
+const result = await tracker.track({
+  entryFile: "/virtual/main.ts",
+  startPoint: { start, end },
+  output: { mode: "blank" },
+});
+
+console.log(result.nodes);
+console.log(result.edges);
+console.log(result.issues);
+```
+
+> [!NOTE]\
+> Virtual file keys must be absolute paths beginning with `/`. A non-absolute key throws `InvalidVirtualPathError`.
+
 ### Reusing a tracker across multiple analyses
 
 ```ts
@@ -669,7 +705,7 @@ See [CONTRIBUTING.md](docs/CONTRIBUTING.md) for the full guide covering developm
 AI is used to assist in the development of this project, including
 
 - Idea and knowledge reinforcement
-- Inline code completion
+- Inline completion
 - Code refactoring suggestions
 - Code review and feedback
 - Code generation for boilerplate and repetitive tasks
