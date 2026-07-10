@@ -1,4 +1,6 @@
 import path from "node:path";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 
 import { describe, expect, it } from "vitest";
 
@@ -91,11 +93,38 @@ describe("VirtualAwareResolver integration", () => {
     expect(result.nodes.some((node) => node.file === realTargetPath)).toBe(true);
   });
 
-  it("emits unresolved-dependency for a bare import with no resolvable package", async () => {
+  it("supports mixed mode when a real entry imports a virtual module", async () => {
+    const tempDir = mkdtempSync(path.join(tmpdir(), "lineage-virtual-mixed-"));
+    const entryFile = path.join(tempDir, "entry.ts");
     const entrySource = [
-      "import { map } from 'lodash';",
-      "export const result = map;",
+      "import { sum } from '/virtual/math';",
+      "export const result = sum(4, 5);",
     ].join("\n");
+
+    writeFileSync(entryFile, entrySource, "utf8");
+
+    try {
+      const tracker = new DependencyTracker({
+        virtualFiles: {
+          "/virtual/math.ts": "export const sum = (a: number, b: number): number => a + b;",
+        },
+      });
+
+      const result = await tracker.track({
+        entryFile,
+        startPoint: findRange(entrySource, "result = sum(4, 5)"),
+      });
+
+      expect(result.nodes.some((node) => node.file === entryFile)).toBe(true);
+      expect(result.nodes.some((node) => node.file === "/virtual/math.ts")).toBe(true);
+      expect(result.edges.some((edge) => edge.kind === "import")).toBe(true);
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("emits unresolved-dependency for a bare import with no resolvable package", async () => {
+    const entrySource = ["import { map } from 'lodash';", "export const result = map;"].join("\n");
 
     const tracker = new DependencyTracker({
       virtualFiles: {
@@ -112,10 +141,9 @@ describe("VirtualAwareResolver integration", () => {
   });
 
   it("follows a three-file transitive virtual import chain", async () => {
-    const entrySource = [
-      "import { doubled } from './mid';",
-      "export const result = doubled;",
-    ].join("\n");
+    const entrySource = ["import { doubled } from './mid';", "export const result = doubled;"].join(
+      "\n",
+    );
 
     const tracker = new DependencyTracker({
       virtualFiles: {

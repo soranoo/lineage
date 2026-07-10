@@ -351,6 +351,10 @@ console.log(result.issues);
 > [!NOTE]\
 > Virtual import resolution supports both same-directory (`./...`) and parent-directory (`../...`) relative specifiers.
 
+> [!NOTE]\
+> Mix is supported, virtual files and physical disk files can participate in the same trace.
+> This works in both directions: a virtual entry can import real files, and a real entry can import virtual modules.
+
 ### Reusing a tracker across multiple analyses
 
 ```ts
