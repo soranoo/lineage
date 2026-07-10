@@ -345,7 +345,7 @@ console.log(result.edges);
 console.log(result.issues);
 ```
 
-> [!NOTE]\
+> [!IMPORTANT]\
 > Virtual file keys must be absolute paths beginning with `/`. A non-absolute key throws `InvalidVirtualPathError`.
 
 > [!NOTE]\
