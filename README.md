@@ -348,6 +348,9 @@ console.log(result.issues);
 > [!NOTE]\
 > Virtual file keys must be absolute paths beginning with `/`. A non-absolute key throws `InvalidVirtualPathError`.
 
+> [!NOTE]\
+> Virtual import resolution supports both same-directory (`./...`) and parent-directory (`../...`) relative specifiers.
+
 ### Reusing a tracker across multiple analyses
 
 ```ts

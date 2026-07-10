@@ -136,6 +136,30 @@ describe("VirtualAwareResolver integration", () => {
     expect(files.has("/virtual/leaf.ts")).toBe(true);
   });
 
+  it("supports parent-directory virtual imports using '../'", async () => {
+    const entrySource = [
+      "import { sum } from '../shared/math';",
+      "export const result = sum(2, 3);",
+    ].join("\n");
+
+    const tracker = new DependencyTracker({
+      virtualFiles: {
+        "/virtual/app/main.ts": entrySource,
+        "/virtual/shared/math.ts": "export const sum = (a: number, b: number): number => a + b;",
+      },
+    });
+
+    const result = await tracker.track({
+      entryFile: "/virtual/app/main.ts",
+      startPoint: findRange(entrySource, "result = sum(2, 3)"),
+    });
+
+    const files = new Set(result.nodes.map((node) => node.file));
+    expect(files.has("/virtual/app/main.ts")).toBe(true);
+    expect(files.has("/virtual/shared/math.ts")).toBe(true);
+    expect(result.edges.some((edge) => edge.kind === "import")).toBe(true);
+  });
+
   it("handles circular virtual imports without throwing and keeps cross-file back-edges", async () => {
     const entrySource = [
       "import { valueB } from './b';",
