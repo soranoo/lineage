@@ -1,7 +1,12 @@
 {
   "name": "@soranoo/lineage",
   "description": "Follow the lineage of any value, across every file.",
-  "keywords": ["dependency graph", "static analysis", "typescript", "javascript"],
+  "keywords": [
+    "dependency graph",
+    "static analysis",
+    "typescript",
+    "javascript"
+  ],
   "license": "GPL-3.0-only",
   "author": "soranoo",
   "type": "module",
@@ -43,5 +48,6 @@
   "lint-staged": {
     "*.{js,jsx,ts,tsx,mjs,cjs}": "bun run lint",
     "*": "oxfmt --no-error-on-unmatched-pattern"
-  }
+  },
+  "version": "1.0.0"
 }
