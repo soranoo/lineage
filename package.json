@@ -28,8 +28,8 @@
     "magic-string": "^0.30.21",
     "neverthrow": "^8.2.0",
     "oxc-parser": "^0.131.0",
-    "oxc-resolver": "^11.19.1",
-    "vitest": "^4.1.6"
+    "oxc-resolver": "^11.23.0",
+    "vitest": "^4.1.10"
   },
   "devDependencies": {
     "@oxc-project/types": "^0.131.0",
@@ -37,9 +37,9 @@
     "@semantic-release/github": "^12.0.9",
     "@semantic-release/npm": "^13.1.5",
     "@types/bun": "latest",
-    "@vitest/coverage-v8": "^4.1.6",
+    "@vitest/coverage-v8": "^4.1.10",
     "oxfmt": "^0.50.0",
-    "oxlint": "^1.65.0",
+    "oxlint": "^1.73.0",
     "typescript": "^6.0.3"
   },
   "peerDependencies": {
