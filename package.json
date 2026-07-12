@@ -11,10 +11,10 @@
   "author": "soranoo",
   "type": "module",
   "main": "dist/index.js",
-  "module": "src/index.ts",
+  "module": "dist/index.js",
   "scripts": {
     "dev": "bun run src/index.ts",
-    "build": "bun build src/index.ts --outdir dist --target node --format esm --minify --root src && tsc",
+    "build": "tsc -p tsconfig.build.json && tsc-alias -p tsconfig.build.json --resolve-full-paths",
     "typecheck": "tsc --noEmit",
     "test": "vitest",
     "test:cov": "vitest run --coverage",
@@ -40,6 +40,7 @@
     "@vitest/coverage-v8": "^4.1.10",
     "oxfmt": "^0.50.0",
     "oxlint": "^1.73.0",
+    "tsc-alias": "^1.9.0",
     "typescript": "^6.0.3"
   },
   "peerDependencies": {
