@@ -1,5 +1,6 @@
 {
   "name": "@soranoo/lineage",
+  "version": "1.0.1",
   "description": "Follow the lineage of any value, across every file.",
   "keywords": [
     "dependency graph",
@@ -50,5 +51,8 @@
     "*.{js,jsx,ts,tsx,mjs,cjs}": "bun run lint",
     "*": "oxfmt --no-error-on-unmatched-pattern"
   },
-  "version": "1.0.1"
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/soranoo/lineage.git"
+  }
 }
