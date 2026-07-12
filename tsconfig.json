@@ -1,6 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
   "include": ["src/**/*"],
+  "exclude": ["dist/**/*"],
   "compilerOptions": {
     "ignoreDeprecations": "6.0",
     "baseUrl": ".",
