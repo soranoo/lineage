@@ -1,10 +1,10 @@
 {
   "extends": "./tsconfig.json",
+  "exclude": ["src/__tests__/**/*"],
   "compilerOptions": {
     "declaration": true,
     "sourceMap": false,
     "allowImportingTsExtensions": false,
     "emitDeclarationOnly": false,
-  },
-  "exclude": ["src/__tests__/**/*"]
+  }
 }
