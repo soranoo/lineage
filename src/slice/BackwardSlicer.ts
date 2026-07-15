@@ -191,7 +191,14 @@ const findSmallestContainingNode = (root: AstNode, range: OffsetRange): AstNode 
 const isSeedNode = (node: AstNode): node is SeedNode =>
   node.type === "ReturnStatement" ||
   node.type === "VariableDeclaration" ||
-  node.type === "ExpressionStatement";
+  node.type === "ExpressionStatement" ||
+  node.type === "IfStatement" ||
+  node.type === "SwitchStatement" ||
+  node.type === "WhileStatement" ||
+  node.type === "DoWhileStatement" ||
+  node.type === "ForStatement" ||
+  node.type === "ForInStatement" ||
+  node.type === "ForOfStatement";
 
 /**
  * Locate the seed node and optional sub-expression range from a start point.

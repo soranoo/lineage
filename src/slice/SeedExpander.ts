@@ -136,6 +136,84 @@ export class SeedExpander {
         return collectIdentifierNames(seedNode.expression, subExprRange);
       case "AssignmentExpression":
         return collectIdentifierNames(seedNode.right, subExprRange);
+      case "IfStatement":
+        return collectIdentifierNames(seedNode.test, subExprRange);
+      case "SwitchStatement":
+        return collectIdentifierNames(seedNode.discriminant, subExprRange);
+      case "WhileStatement":
+        return collectIdentifierNames(seedNode.test, subExprRange);
+      case "DoWhileStatement":
+        return collectIdentifierNames(seedNode.test, subExprRange);
+      case "ForStatement": {
+        const names: SourceText[] = [];
+
+        if (seedNode.init !== null) {
+          const initNames = collectIdentifierNames(seedNode.init, subExprRange);
+          for (const name of initNames) {
+            if (!names.includes(name)) {
+              names.push(name);
+            }
+          }
+        }
+
+        if (seedNode.test !== null) {
+          const testNames = collectIdentifierNames(seedNode.test, subExprRange);
+          for (const name of testNames) {
+            if (!names.includes(name)) {
+              names.push(name);
+            }
+          }
+        }
+
+        if (seedNode.update !== null) {
+          const updateNames = collectIdentifierNames(seedNode.update, subExprRange);
+          for (const name of updateNames) {
+            if (!names.includes(name)) {
+              names.push(name);
+            }
+          }
+        }
+
+        return names;
+      }
+      case "ForInStatement": {
+        const names: SourceText[] = [];
+        const leftNames = collectIdentifierNames(seedNode.left, subExprRange);
+        const rightNames = collectIdentifierNames(seedNode.right, subExprRange);
+
+        for (const name of leftNames) {
+          if (!names.includes(name)) {
+            names.push(name);
+          }
+        }
+
+        for (const name of rightNames) {
+          if (!names.includes(name)) {
+            names.push(name);
+          }
+        }
+
+        return names;
+      }
+      case "ForOfStatement": {
+        const names: SourceText[] = [];
+        const leftNames = collectIdentifierNames(seedNode.left, subExprRange);
+        const rightNames = collectIdentifierNames(seedNode.right, subExprRange);
+
+        for (const name of leftNames) {
+          if (!names.includes(name)) {
+            names.push(name);
+          }
+        }
+
+        for (const name of rightNames) {
+          if (!names.includes(name)) {
+            names.push(name);
+          }
+        }
+
+        return names;
+      }
       default:
         return assertNever(seedNode);
     }

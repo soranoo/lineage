@@ -73,7 +73,18 @@ export type AstNode = Node;
  */
 export type SeedNode = AstNode & {
   /** Supported seed node discriminants. */
-  type: "ReturnStatement" | "VariableDeclaration" | "ExpressionStatement" | "AssignmentExpression";
+  type:
+    | "ReturnStatement"
+    | "VariableDeclaration"
+    | "ExpressionStatement"
+    | "AssignmentExpression"
+    | "IfStatement"
+    | "SwitchStatement"
+    | "WhileStatement"
+    | "DoWhileStatement"
+    | "ForStatement"
+    | "ForInStatement"
+    | "ForOfStatement";
 };
 
 /**
