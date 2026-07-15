@@ -21,6 +21,7 @@ import type {
   TrackResult,
 } from "@/types";
 
+import { offsetFromLineCol } from "@/helpers/offset-from-line-col";
 import { IssueCollector } from "@/issues/IssueCollector";
 import { OxcParser } from "@/parse/OxcParser";
 import { FakeParser } from "@/__tests__/_fakes/FakeParser";
@@ -439,6 +440,258 @@ describe("DependencyTracker", () => {
           startPoint: missingStartPoint,
         }),
       ).rejects.toThrow(StartPointNotFoundError);
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  it("tracks dependencies when start point is a switch statement header range", async () => {
+    const fixture = createFixtureContext([
+      {
+        relativePath: "entry.ts",
+        source: [
+          "let a = 1;",
+          "",
+          "switch(a) {",
+          "  case 1: {",
+          "    a = a;",
+          "    const b = 2;",
+          "  }",
+          "  case 2: {",
+          "    const c = 3;",
+          "  }",
+          "}",
+        ].join("\n"),
+      },
+    ]);
+
+    try {
+      const entryFile = requireFixturePath(fixture, "entry.ts");
+      const source = requireFixtureSource(fixture, entryFile);
+      const startPoint: OffsetRange = {
+        start: offsetFromLineCol(source, 3, 1),
+        end: offsetFromLineCol(source, 3, 12),
+      };
+      const tracker = await createTracker({});
+
+      const result = await tracker.track({ entryFile, startPoint });
+
+      expect(result.nodes.some((node) => node.kind === "start-point")).toBe(true);
+      expect(
+        result.nodes.some(
+          (node) =>
+            node.file === entryFile &&
+            (node.kind === "global" || node.kind === "variable") &&
+            node.label.includes("a = 1"),
+        ),
+      ).toBe(true);
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  it("tracks dependencies when start point is an if statement header range", async () => {
+    const fixture = createFixtureContext([
+      {
+        relativePath: "entry.ts",
+        source: ["let a = 1;", "", "if(a === 1) {", "  a = a;", "  const b = 2;", "}"].join(
+          "\n",
+        ),
+      },
+    ]);
+
+    try {
+      const entryFile = requireFixturePath(fixture, "entry.ts");
+      const source = requireFixtureSource(fixture, entryFile);
+      const startPoint: OffsetRange = {
+        start: offsetFromLineCol(source, 3, 1),
+        end: offsetFromLineCol(source, 3, 13),
+      };
+      const tracker = await createTracker({});
+
+      const result = await tracker.track({ entryFile, startPoint });
+
+      expect(result.nodes.some((node) => node.kind === "start-point")).toBe(true);
+      expect(
+        result.nodes.some(
+          (node) =>
+            node.file === entryFile &&
+            (node.kind === "global" || node.kind === "variable") &&
+            node.label.includes("a = 1"),
+        ),
+      ).toBe(true);
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  it("tracks dependencies when start point is a while statement header range", async () => {
+    const fixture = createFixtureContext([
+      {
+        relativePath: "entry.ts",
+        source: ["let a = 1;", "", "while(a < 2) {", "  a = a + 1;", "}"] .join("\n"),
+      },
+    ]);
+
+    try {
+      const entryFile = requireFixturePath(fixture, "entry.ts");
+      const source = requireFixtureSource(fixture, entryFile);
+      const startPoint: OffsetRange = {
+        start: offsetFromLineCol(source, 3, 1),
+        end: offsetFromLineCol(source, 3, 13),
+      };
+      const tracker = await createTracker({});
+
+      const result = await tracker.track({ entryFile, startPoint });
+
+      expect(result.nodes.some((node) => node.kind === "start-point")).toBe(true);
+      expect(
+        result.nodes.some(
+          (node) =>
+            node.file === entryFile &&
+            (node.kind === "global" || node.kind === "variable") &&
+            node.label.includes("a = 1"),
+        ),
+      ).toBe(true);
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  it("tracks dependencies when start point is a do-while statement header range", async () => {
+    const fixture = createFixtureContext([
+      {
+        relativePath: "entry.ts",
+        source: ["let a = 1;", "", "do {", "  a = a + 1;", "} while (a < 2);"] .join("\n"),
+      },
+    ]);
+
+    try {
+      const entryFile = requireFixturePath(fixture, "entry.ts");
+      const source = requireFixtureSource(fixture, entryFile);
+      const startPoint: OffsetRange = {
+        start: offsetFromLineCol(source, 5, 1),
+        end: offsetFromLineCol(source, 5, 16),
+      };
+      const tracker = await createTracker({});
+
+      const result = await tracker.track({ entryFile, startPoint });
+
+      expect(result.nodes.some((node) => node.kind === "start-point")).toBe(true);
+      expect(
+        result.nodes.some(
+          (node) =>
+            node.file === entryFile &&
+            (node.kind === "global" || node.kind === "variable") &&
+            node.label.includes("a = 1"),
+        ),
+      ).toBe(true);
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  it("tracks dependencies when start point is a for statement header range", async () => {
+    const fixture = createFixtureContext([
+      {
+        relativePath: "entry.ts",
+        source: ["let a = 1;", "", "for (; a < 2; a++) {", "  const b = a;", "}"] .join("\n"),
+      },
+    ]);
+
+    try {
+      const entryFile = requireFixturePath(fixture, "entry.ts");
+      const source = requireFixtureSource(fixture, entryFile);
+      const startPoint: OffsetRange = {
+        start: offsetFromLineCol(source, 3, 1),
+        end: offsetFromLineCol(source, 3, 20),
+      };
+      const tracker = await createTracker({});
+
+      const result = await tracker.track({ entryFile, startPoint });
+
+      expect(result.nodes.some((node) => node.kind === "start-point")).toBe(true);
+      expect(
+        result.nodes.some(
+          (node) =>
+            node.file === entryFile &&
+            (node.kind === "global" || node.kind === "variable") &&
+            node.label.includes("a = 1"),
+        ),
+      ).toBe(true);
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  it("tracks dependencies when start point is a for-in statement header range", async () => {
+    const fixture = createFixtureContext([
+      {
+        relativePath: "entry.ts",
+        source: [
+          "const obj = { x: 1 };",
+          "let key = '';",
+          "",
+          "for (key in obj) {",
+          "  const b = key;",
+          "}",
+        ].join("\n"),
+      },
+    ]);
+
+    try {
+      const entryFile = requireFixturePath(fixture, "entry.ts");
+      const source = requireFixtureSource(fixture, entryFile);
+      const startPoint: OffsetRange = {
+        start: offsetFromLineCol(source, 4, 1),
+        end: offsetFromLineCol(source, 4, 18),
+      };
+      const tracker = await createTracker({});
+
+      const result = await tracker.track({ entryFile, startPoint });
+
+      expect(result.nodes.some((node) => node.kind === "start-point")).toBe(true);
+      expect(
+        result.nodes.some(
+          (node) =>
+            node.file === entryFile &&
+            (node.kind === "global" || node.kind === "variable") &&
+            node.label.includes("obj = { x: 1 }"),
+        ),
+      ).toBe(true);
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  it("tracks dependencies when start point is a for-of statement header range", async () => {
+    const fixture = createFixtureContext([
+      {
+        relativePath: "entry.ts",
+        source: ["const arr = [1, 2];", "", "for (const x of arr) {", "  const b = x;", "}"] .join("\n"),
+      },
+    ]);
+
+    try {
+      const entryFile = requireFixturePath(fixture, "entry.ts");
+      const source = requireFixtureSource(fixture, entryFile);
+      const startPoint: OffsetRange = {
+        start: offsetFromLineCol(source, 3, 1),
+        end: offsetFromLineCol(source, 3, 22),
+      };
+      const tracker = await createTracker({});
+
+      const result = await tracker.track({ entryFile, startPoint });
+
+      expect(result.nodes.some((node) => node.kind === "start-point")).toBe(true);
+      expect(
+        result.nodes.some(
+          (node) =>
+            node.file === entryFile &&
+            (node.kind === "global" || node.kind === "variable") &&
+            node.label.includes("arr = [1, 2]"),
+        ),
+      ).toBe(true);
     } finally {
       fixture.cleanup();
     }
