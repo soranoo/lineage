@@ -144,76 +144,22 @@ export class SeedExpander {
         return collectIdentifierNames(seedNode.test, subExprRange);
       case "DoWhileStatement":
         return collectIdentifierNames(seedNode.test, subExprRange);
-      case "ForStatement": {
-        const names: SourceText[] = [];
-
-        if (seedNode.init !== null) {
-          const initNames = collectIdentifierNames(seedNode.init, subExprRange);
-          for (const name of initNames) {
-            if (!names.includes(name)) {
-              names.push(name);
-            }
-          }
-        }
-
-        if (seedNode.test !== null) {
-          const testNames = collectIdentifierNames(seedNode.test, subExprRange);
-          for (const name of testNames) {
-            if (!names.includes(name)) {
-              names.push(name);
-            }
-          }
-        }
-
-        if (seedNode.update !== null) {
-          const updateNames = collectIdentifierNames(seedNode.update, subExprRange);
-          for (const name of updateNames) {
-            if (!names.includes(name)) {
-              names.push(name);
-            }
-          }
-        }
-
-        return names;
-      }
-      case "ForInStatement": {
-        const names: SourceText[] = [];
-        const leftNames = collectIdentifierNames(seedNode.left, subExprRange);
-        const rightNames = collectIdentifierNames(seedNode.right, subExprRange);
-
-        for (const name of leftNames) {
-          if (!names.includes(name)) {
-            names.push(name);
-          }
-        }
-
-        for (const name of rightNames) {
-          if (!names.includes(name)) {
-            names.push(name);
-          }
-        }
-
-        return names;
-      }
-      case "ForOfStatement": {
-        const names: SourceText[] = [];
-        const leftNames = collectIdentifierNames(seedNode.left, subExprRange);
-        const rightNames = collectIdentifierNames(seedNode.right, subExprRange);
-
-        for (const name of leftNames) {
-          if (!names.includes(name)) {
-            names.push(name);
-          }
-        }
-
-        for (const name of rightNames) {
-          if (!names.includes(name)) {
-            names.push(name);
-          }
-        }
-
-        return names;
-      }
+      case "ForStatement":
+        return Array.from(
+          new Set([
+            ...(seedNode.init ? collectIdentifierNames(seedNode.init, subExprRange) : []),
+            ...(seedNode.test ? collectIdentifierNames(seedNode.test, subExprRange) : []),
+            ...(seedNode.update ? collectIdentifierNames(seedNode.update, subExprRange) : []),
+          ]),
+        );
+      case "ForInStatement":
+      case "ForOfStatement":
+        return Array.from(
+          new Set([
+            ...collectIdentifierNames(seedNode.left, subExprRange),
+            ...collectIdentifierNames(seedNode.right, subExprRange),
+          ]),
+        );
       default:
         return assertNever(seedNode);
     }
