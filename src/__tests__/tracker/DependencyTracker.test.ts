@@ -697,6 +697,57 @@ describe("DependencyTracker", () => {
     }
   });
 
+  it("does not mark start-point call statement as shaken when tracking an identifier within it", async () => {
+    const fixture = createFixtureContext([
+      {
+        relativePath: "entry.ts",
+        source: [
+          "let a = 1;",
+          "",
+          "(function() {",
+          "  const b = (t, e) => {",
+          "    return t + e;",
+          "  };",
+          "",
+          "  const c = (t, e) => {",
+          "    return b(t, e);",
+          "  };",
+          "",
+          "  console.log(c(1, 2) + a);",
+          "})();",
+        ].join("\n"),
+      },
+    ]);
+
+    try {
+      const entryFile = requireFixturePath(fixture, "entry.ts");
+      const source = requireFixtureSource(fixture, entryFile);
+      const aOffset = source.lastIndexOf(" + a");
+
+      if (aOffset < 0) {
+        throw new Error("Expected '+ a' fragment in fixture source.");
+      }
+
+      const startPoint: OffsetRange = {
+        start: aOffset + 3,
+        end: aOffset + 4,
+      };
+      const tracker = await createTracker({});
+
+      const result = await tracker.track({ entryFile, startPoint });
+      const startNode = result.nodes.find((node) => node.kind === "start-point");
+
+      expect(startNode).toBeDefined();
+      expect(startNode?.shaken).toBe(false);
+      expect(startNode?.label.includes("console.log(c(1, 2) + a);")).toBe(true);
+
+      const output = result.files.get(entryFile)?.ms.toString() ?? "";
+      expect(output.includes("console.log(c(1, 2) + a);")).toBe(true);
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
   it("preserves output length in blank mode and shortens output in compact mode", async () => {
     const fixture = createFixtureContext([
       {
