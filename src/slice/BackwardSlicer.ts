@@ -844,7 +844,7 @@ export class BackwardSlicer {
       const existing = nodeById.get(id);
 
       if (existing) {
-        if (shaken && !existing.shaken) {
+        if (shaken && !existing.shaken && existing.kind !== "start-point") {
           existing.shaken = true;
         }
         if (existing.kind !== kind && (kind === "ignored-leaf" || kind === "unresolved-leaf")) {
