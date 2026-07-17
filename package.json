@@ -1,6 +1,6 @@
 {
   "name": "@soranoo/lineage",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Follow the lineage of any value, across every file.",
   "keywords": [
     "dependency graph",
