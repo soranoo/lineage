@@ -5,6 +5,7 @@ import MagicString from "magic-string";
 
 import type {
   AbsolutePath,
+  AstNode,
   DependencyNode,
   IEditor,
   IIssueCollector,
@@ -22,6 +23,7 @@ import type {
 } from "@/types";
 
 import { MagicStringEditor } from "@/edit/MagicStringEditor";
+import { walkAst } from "@/helpers/ast-walker";
 import { IssueCollector } from "@/issues/IssueCollector";
 import { DynamicPatternDetector } from "@/issues/DynamicPatternDetector";
 import { OxcParser } from "@/parse/OxcParser";
@@ -168,24 +170,94 @@ const buildKeepRangeSet = (ranges: OffsetRange[]): Set<OffsetRange> => {
 };
 
 /**
- * Expand a node range to full line boundaries in source text.
+ * Check whether a container node fully contains a target range.
  *
- * @param source Source text containing the range.
- * @param range Node range to expand.
- * @returns Range expanded to include full line content.
+ * @param container Node that may contain the range.
+ * @param range Range to test.
+ * @returns True when the range is inside the container.
  */
-const expandRangeToLineBounds = (source: SourceText, range: OffsetRange): OffsetRange => {
-  let start = range.start;
-  while (start > 0 && source[start - 1] !== "\n" && source[start - 1] !== "\r") {
-    start -= 1;
+const containsRange = (container: AstNode, range: OffsetRange): boolean =>
+  container.start <= range.start && container.end >= range.end;
+
+/**
+ * Check whether a node can define a keep-range boundary.
+ *
+ * @param node AST node to inspect.
+ * @returns True when the node is a statement/declaration boundary.
+ */
+const isKeepBoundaryNode = (node: AstNode): boolean => {
+  if (node.type.endsWith("Statement") || node.type.endsWith("Declaration")) {
+    return true;
   }
 
-  let end = range.end;
-  while (end < source.length && source[end] !== "\n" && source[end] !== "\r") {
-    end += 1;
+  return false;
+};
+
+/**
+ * Select the smallest node span from a non-empty candidate list.
+ *
+ * @param candidates Candidate nodes.
+ * @returns Smallest-span node.
+ */
+const selectSmallestNode = (candidates: AstNode[]): AstNode => {
+  const [first, ...rest] = candidates;
+
+  if (first === undefined) {
+    throw new Error("Expected at least one AST node candidate.");
   }
 
-  return { start, end };
+  let smallest = first;
+
+  for (const node of rest) {
+    const smallestSize = smallest.end - smallest.start;
+    const nodeSize = node.end - node.start;
+
+    if (nodeSize < smallestSize) {
+      smallest = node;
+    }
+  }
+
+  return smallest;
+};
+
+/**
+ * Expand a dependency-node range to its nearest statement/declaration boundary.
+ *
+ * @param ast AST root for the current file.
+ * @param range Dependency-node range.
+ * @returns Expanded statement/declaration range when found; otherwise original range.
+ */
+const expandRangeToBoundary = (ast: AstNode, range: OffsetRange): OffsetRange => {
+  const boundaryMatches: AstNode[] = [];
+  const exportMatches: AstNode[] = [];
+
+  walkAst(ast, (node) => {
+    if (!isKeepBoundaryNode(node) || !containsRange(node, range)) {
+      return;
+    }
+
+    boundaryMatches.push(node);
+
+    if (
+      node.type === "ExportNamedDeclaration" ||
+      node.type === "ExportDefaultDeclaration" ||
+      node.type === "ExportAllDeclaration"
+    ) {
+      exportMatches.push(node);
+    }
+  });
+
+  if (exportMatches.length > 0) {
+    const selectedExport = selectSmallestNode(exportMatches);
+    return { start: selectedExport.start, end: selectedExport.end };
+  }
+
+  if (boundaryMatches.length === 0) {
+    return { start: range.start, end: range.end };
+  }
+
+  const selectedBoundary = selectSmallestNode(boundaryMatches);
+  return { start: selectedBoundary.start, end: selectedBoundary.end };
 };
 
 /**
@@ -217,13 +289,13 @@ const shouldKeepNodeForOutput = (node: DependencyNode): boolean => {
  * Convert dependency nodes into output keep ranges.
  *
  * @param nodes Dependency nodes from one file.
- * @param source Source text of the file.
+ * @param parsedFile Parsed file of the current source file.
  * @returns Keep ranges used by the editor.
  */
-const toOutputKeepRanges = (nodes: DependencyNode[], source: SourceText): Set<OffsetRange> => {
+const toOutputKeepRanges = (nodes: DependencyNode[], parsedFile: ParsedFile): Set<OffsetRange> => {
   const ranges = nodes
     .filter((node) => node.shaken === false && shouldKeepNodeForOutput(node))
-    .map((node) => expandRangeToLineBounds(source, node.range));
+    .map((node) => expandRangeToBoundary(parsedFile.ast, node.range));
 
   return buildKeepRangeSet(ranges);
 };
@@ -402,7 +474,7 @@ export class DependencyTracker {
         continue;
       }
 
-      const keepRanges = toOutputKeepRanges(fileNodes, parsedFile.source);
+      const keepRanges = toOutputKeepRanges(fileNodes, parsedFile);
       const ms = new MagicString(parsedFile.source);
       this.editor.apply(ms, parsedFile.source, keepRanges, mode);
 

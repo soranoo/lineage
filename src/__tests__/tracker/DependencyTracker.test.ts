@@ -236,6 +236,14 @@ const findRangeForFragment = (source: SourceText, fragment: SourceText): OffsetR
 };
 
 /**
+ * Create a same-length whitespace mask for assertion of blanked spans.
+ *
+ * @param value Source fragment to convert into spaces.
+ * @returns Whitespace-only string matching fragment length.
+ */
+const toSpaceMask = (value: SourceText): SourceText => " ".repeat(value.length);
+
+/**
  * Runtime type guard for a DependencyTracker constructor export.
  *
  * @param value Unknown export value to validate.
@@ -743,6 +751,55 @@ describe("DependencyTracker", () => {
 
       const output = result.files.get(entryFile)?.ms.toString() ?? "";
       expect(output.includes("console.log(c(1, 2) + a);")).toBe(true);
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  it("blanks unrelated same-line statements when tracking identifier inside call expression", async () => {
+    const fixture = createFixtureContext([
+      {
+        relativePath: "entry.ts",
+        source: [
+          "let a = 1;",
+          "",
+          "(function() {",
+          "  const b = (t, e) => {",
+          "    return t + e;",
+          "  };",
+          "",
+          "  const c = (t, e) => {return b(t, e);};console.log(c(1, 2)+a);",
+          "})();",
+        ].join("\n"),
+      },
+    ]);
+
+    try {
+      const entryFile = requireFixturePath(fixture, "entry.ts");
+      const source = requireFixtureSource(fixture, entryFile);
+      const aOffset = source.lastIndexOf("+a");
+
+      if (aOffset < 0) {
+        throw new Error("Expected '+a' fragment in fixture source.");
+      }
+
+      const startPoint: OffsetRange = {
+        start: aOffset + 1,
+        end: aOffset + 2,
+      };
+      const tracker = await createTracker({});
+      const result = await tracker.track({
+        entryFile,
+        startPoint,
+        output: { mode: "blank" },
+      });
+      const output = result.files.get(entryFile)?.ms.toString() ?? "";
+      const sameLineDeclaration = "const c = (t, e) => {return b(t, e);};";
+      const sameLineCall = "console.log(c(1, 2)+a);";
+
+      expect(output).toContain(sameLineCall);
+      expect(output).not.toContain(`  ${sameLineDeclaration}${sameLineCall}`);
+      expect(output).toContain(`  ${toSpaceMask(sameLineDeclaration)}${sameLineCall}`);
     } finally {
       fixture.cleanup();
     }
