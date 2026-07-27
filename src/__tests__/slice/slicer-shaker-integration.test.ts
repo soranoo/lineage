@@ -1,15 +1,14 @@
+import type { ReturnStatement } from "@oxc-project/types";
 import { describe, expect, it } from "vitest";
 
-import type { AbsolutePath, AstNode, OffsetRange, ParsedFile, SourceText } from "@/types";
-import type { ReturnStatement } from "@oxc-project/types";
-
+import { FakeParser } from "@/__tests__/_fakes/FakeParser";
+import { FakeResolver } from "@/__tests__/_fakes/FakeResolver";
 import { walkAst } from "@/helpers/ast-walker";
 import { IssueCollector } from "@/issues/IssueCollector";
 import { OxcParser } from "@/parse/OxcParser";
-import { BackwardSlicer } from "@/slice/BackwardSlicer";
-import { FakeParser } from "@/__tests__/_fakes/FakeParser";
-import { FakeResolver } from "@/__tests__/_fakes/FakeResolver";
 import { IntraFunctionShaker } from "@/shake/IntraFunctionShaker";
+import { BackwardSlicer } from "@/slice/BackwardSlicer";
+import type { AbsolutePath, AstNode, OffsetRange, ParsedFile, SourceText } from "@/types";
 
 /**
  * Source entry for multi-file parsing.

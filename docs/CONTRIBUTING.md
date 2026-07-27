@@ -127,14 +127,14 @@ git checkout -b fix/ignore-filter-regex-escape
 
 Branch naming follows the same type prefixes as commit messages:
 
-| Type | When to use |
-|---|---|
-| `fix/` | Bug fix |
-| `feat/` | New feature |
-| `docs/` | Documentation only |
+| Type        | When to use                          |
+| ----------- | ------------------------------------ |
+| `fix/`      | Bug fix                              |
+| `feat/`     | New feature                          |
+| `docs/`     | Documentation only                   |
 | `refactor/` | Code change with no behaviour change |
-| `test/` | Adding or correcting tests |
-| `chore/` | Tooling, config, dependency updates |
+| `test/`     | Adding or correcting tests           |
+| `chore/`    | Tooling, config, dependency updates  |
 
 ### 3. Make your changes
 
@@ -168,16 +168,16 @@ This project follows [Conventional Commits](https://www.conventionalcommits.org/
 
 **Types:**
 
-| Type | When to use |
-|---|---|
-| `fix` | A bug fix |
-| `feat` | A new feature |
-| `docs` | Documentation changes only |
+| Type       | When to use                                 |
+| ---------- | ------------------------------------------- |
+| `fix`      | A bug fix                                   |
+| `feat`     | A new feature                               |
+| `docs`     | Documentation changes only                  |
 | `refactor` | Code restructuring with no behaviour change |
-| `test` | Adding or fixing tests |
-| `chore` | Tooling, config, dependency bumps |
-| `perf` | Performance improvements |
-| `ci` | CI configuration changes |
+| `test`     | Adding or fixing tests                      |
+| `chore`    | Tooling, config, dependency bumps           |
+| `perf`     | Performance improvements                    |
+| `ci`       | CI configuration changes                    |
 
 **Examples:**
 

@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import type { AbsolutePath, OxcAst, ParsedFile, SourceText } from "@/types";
-
-import { ParseError } from "@/types";
 import { FakeParser } from "./FakeParser";
+import type { AbsolutePath, OxcAst, ParsedFile, SourceText } from "@/types";
+import { ParseError } from "@/types";
 
 /**
  * Build a minimal Program AST for tests.

@@ -5,6 +5,12 @@ import path from "node:path";
 import MagicString from "magic-string";
 import { describe, expect, it } from "vitest";
 
+import { FakeParser } from "@/__tests__/_fakes/FakeParser";
+import { FakeResolver } from "@/__tests__/_fakes/FakeResolver";
+import { FakeShaker } from "@/__tests__/_fakes/FakeShaker";
+import { offsetFromLineCol } from "@/helpers/offset-from-line-col";
+import { IssueCollector } from "@/issues/IssueCollector";
+import { OxcParser } from "@/parse/OxcParser";
 import type {
   AbsolutePath,
   CharOffset,
@@ -20,13 +26,6 @@ import type {
   TrackRequest,
   TrackResult,
 } from "@/types";
-
-import { offsetFromLineCol } from "@/helpers/offset-from-line-col";
-import { IssueCollector } from "@/issues/IssueCollector";
-import { OxcParser } from "@/parse/OxcParser";
-import { FakeParser } from "@/__tests__/_fakes/FakeParser";
-import { FakeResolver } from "@/__tests__/_fakes/FakeResolver";
-import { FakeShaker } from "@/__tests__/_fakes/FakeShaker";
 import { StartPointNotFoundError } from "@/types";
 import { InvalidVirtualPathError } from "@/types";
 
@@ -502,9 +501,7 @@ describe("DependencyTracker", () => {
     const fixture = createFixtureContext([
       {
         relativePath: "entry.ts",
-        source: ["let a = 1;", "", "if(a === 1) {", "  a = a;", "  const b = 2;", "}"].join(
-          "\n",
-        ),
+        source: ["let a = 1;", "", "if(a === 1) {", "  a = a;", "  const b = 2;", "}"].join("\n"),
       },
     ]);
 
@@ -537,7 +534,7 @@ describe("DependencyTracker", () => {
     const fixture = createFixtureContext([
       {
         relativePath: "entry.ts",
-        source: ["let a = 1;", "", "while(a < 2) {", "  a = a + 1;", "}"] .join("\n"),
+        source: ["let a = 1;", "", "while(a < 2) {", "  a = a + 1;", "}"].join("\n"),
       },
     ]);
 
@@ -570,7 +567,7 @@ describe("DependencyTracker", () => {
     const fixture = createFixtureContext([
       {
         relativePath: "entry.ts",
-        source: ["let a = 1;", "", "do {", "  a = a + 1;", "} while (a < 2);"] .join("\n"),
+        source: ["let a = 1;", "", "do {", "  a = a + 1;", "} while (a < 2);"].join("\n"),
       },
     ]);
 
@@ -603,7 +600,7 @@ describe("DependencyTracker", () => {
     const fixture = createFixtureContext([
       {
         relativePath: "entry.ts",
-        source: ["let a = 1;", "", "for (; a < 2; a++) {", "  const b = a;", "}"] .join("\n"),
+        source: ["let a = 1;", "", "for (; a < 2; a++) {", "  const b = a;", "}"].join("\n"),
       },
     ]);
 
@@ -676,7 +673,9 @@ describe("DependencyTracker", () => {
     const fixture = createFixtureContext([
       {
         relativePath: "entry.ts",
-        source: ["const arr = [1, 2];", "", "for (const x of arr) {", "  const b = x;", "}"] .join("\n"),
+        source: ["const arr = [1, 2];", "", "for (const x of arr) {", "  const b = x;", "}"].join(
+          "\n",
+        ),
       },
     ]);
 
@@ -886,7 +885,9 @@ describe("DependencyTracker", () => {
     const fixture = createFixtureContext([
       {
         relativePath: "entry.ts",
-        source: ["import { target } from './target.ts';", "export const result = target;"].join("\n"),
+        source: ["import { target } from './target.ts';", "export const result = target;"].join(
+          "\n",
+        ),
       },
       {
         relativePath: "target.ts",
@@ -902,9 +903,9 @@ describe("DependencyTracker", () => {
 
       const result = await tracker.track({ entryFile, startPoint });
 
-      expect(result.nodes.some((node) => node.file === requireFixturePath(fixture, "target.ts"))).toBe(
-        true,
-      );
+      expect(
+        result.nodes.some((node) => node.file === requireFixturePath(fixture, "target.ts")),
+      ).toBe(true);
     } finally {
       fixture.cleanup();
     }

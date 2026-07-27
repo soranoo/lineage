@@ -1,9 +1,8 @@
-import { visitorKeys } from "oxc-parser";
 import assertNever from "assert-never";
-
-import type { AstNode, ParsedFile, SourceText } from "@/types";
+import { visitorKeys } from "oxc-parser";
 
 import { isAstNode } from "@/helpers/ast-walker";
+import type { AstNode, ParsedFile, SourceText } from "@/types";
 
 /**
  * Scope classification used during binding lookup.

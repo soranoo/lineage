@@ -1,6 +1,3 @@
-import { describe, expect, it } from "vitest";
-
-import type { AbsolutePath, AstNode, OffsetRange, ParsedFile, SourceText } from "@/types";
 import type {
   AssignmentExpression,
   CallExpression,
@@ -8,10 +5,12 @@ import type {
   ReturnStatement,
   VariableDeclaration,
 } from "@oxc-project/types";
+import { describe, expect, it } from "vitest";
 
 import { walkAst } from "@/helpers/ast-walker";
 import { OxcParser } from "@/parse/OxcParser";
 import { SeedExpander } from "@/slice/SeedExpander";
+import type { AbsolutePath, AstNode, OffsetRange, ParsedFile, SourceText } from "@/types";
 
 const entryFile: AbsolutePath = "/project/src/seed.ts";
 

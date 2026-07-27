@@ -1,8 +1,10 @@
+import type { CallExpression } from "@oxc-project/types";
 import { assertNever } from "assert-never";
 import { visitorKeys } from "oxc-parser";
 
-import type { CallExpression } from "@oxc-project/types";
-
+import { isAstNode, walkAst } from "@/helpers/ast-walker";
+import { BindingResolver } from "@/slice/BindingResolver";
+import { SeedExpander } from "@/slice/SeedExpander";
 import type {
   AbsolutePath,
   AstNode,
@@ -24,10 +26,6 @@ import type {
   SourceText,
 } from "@/types";
 import type { IParser, IResolver, IShaker } from "@/types";
-
-import { isAstNode, walkAst } from "@/helpers/ast-walker";
-import { BindingResolver } from "@/slice/BindingResolver";
-import { SeedExpander } from "@/slice/SeedExpander";
 import { StartPointNotFoundError } from "@/types";
 
 /**

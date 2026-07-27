@@ -2,6 +2,8 @@ import path from "node:path";
 
 import { assertNever } from "assert-never";
 
+import { IgnoreFilter } from "@/resolve/IgnoreFilter";
+import { OxcResolver } from "@/resolve/OxcResolver";
 import type { IResolver } from "@/resolve/Resolver";
 import type {
   AbsolutePath,
@@ -10,9 +12,6 @@ import type {
   ResolveResult,
   SourceText,
 } from "@/types";
-
-import { IgnoreFilter } from "@/resolve/IgnoreFilter";
-import { OxcResolver } from "@/resolve/OxcResolver";
 import { InvalidVirtualPathError } from "@/types";
 
 const VIRTUAL_PROBE_SUFFIXES: readonly [
@@ -108,7 +107,10 @@ export class VirtualAwareResolver implements IResolver {
    * @param fromFile Importing file path.
    * @returns Normalized absolute probe base path.
    */
-  private readonly normalizeBasePath = (specifier: SourceText, fromFile: AbsolutePath): AbsolutePath => {
+  private readonly normalizeBasePath = (
+    specifier: SourceText,
+    fromFile: AbsolutePath,
+  ): AbsolutePath => {
     const usePosixResolution = fromFile.startsWith("/") || specifier.startsWith("/");
 
     if (usePosixResolution) {

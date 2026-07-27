@@ -1,6 +1,5 @@
 import type { IParser } from "@/parse/Parser";
 import type { AbsolutePath, ParsedFile, SourceText } from "@/types";
-
 import { ParseError } from "@/types";
 
 /**

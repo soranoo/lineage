@@ -1,5 +1,5 @@
-import { add } from "./math.ts";
 import { format } from "./index.ts";
+import { add } from "./math.ts";
 
 const x = 5;
 const y = 10;

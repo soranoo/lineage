@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import MagicString from "magic-string";
+import { describe, expect, it } from "vitest";
 
 import type { IEditor } from "@/edit/Editor";
 import type { OffsetRange, OutputMode, SourceText } from "@/types";

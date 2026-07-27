@@ -129,170 +129,192 @@ console.log(result.issues); // See "Output - 3" below
 ```
 
 Output - 1:
+
 ```json
 [
   {
-    id: "./demo/main.js:158:173",
-    file: "./demo/main.js",
-    range: {
-      start: 158,
-      end: 173,
+    "id": "./demo/main.js:158:173",
+    "file": "./demo/main.js",
+    "range": {
+      "start": 158,
+      "end": 173
     },
-    label: "return b(t, e);",
-    kind: "start-point",
-    shaken: false,
-  }, {
-    id: "./demo/main.js:73:113",
-    file: "./demo/main.js",
-    range: {
-      start: 73,
-      end: 113,
+    "label": "return b(t, e);",
+    "kind": "start-point",
+    "shaken": false
+  },
+  {
+    "id": "./demo/main.js:73:113",
+    "file": "./demo/main.js",
+    "range": {
+      "start": 73,
+      "end": 113
     },
-    label: "function b(c, d) {\n    return a(c, d);\n}",
-    kind: "function",
-    shaken: false,
-  }, {
-    id: "./demo/main.js:84:85",
-    file: "./demo/main.js",
-    range: {
-      start: 84,
-      end: 85,
+    "label": "function b(c, d) {\n    return a(c, d);\n}",
+    "kind": "function",
+    "shaken": false
+  },
+  {
+    "id": "./demo/main.js:84:85",
+    "file": "./demo/main.js",
+    "range": {
+      "start": 84,
+      "end": 85
     },
-    label: "c",
-    kind: "parameter",
-    shaken: false,
-  }, {
-    id: "./demo/main.js:87:88",
-    file: "./demo/main.js",
-    range: {
-      start: 87,
-      end: 88,
+    "label": "c",
+    "kind": "parameter",
+    "shaken": false
+  },
+  {
+    "id": "./demo/main.js:87:88",
+    "file": "./demo/main.js",
+    "range": {
+      "start": 87,
+      "end": 88
     },
-    label: "d",
-    kind: "parameter",
-    shaken: false,
-  }, {
-    id: "./demo/main.js:143:152",
-    file: "./demo/main.js",
-    range: {
-      start: 143,
-      end: 152,
+    "label": "d",
+    "kind": "parameter",
+    "shaken": false
+  },
+  {
+    "id": "./demo/main.js:143:152",
+    "file": "./demo/main.js",
+    "range": {
+      "start": 143,
+      "end": 152
     },
-    label: "t = d + 5",
-    kind: "variable",
-    shaken: false,
-  }, {
-    id: "./demo/main.js:128:129",
-    file: "./demo/main.js",
-    range: {
-      start: 128,
-      end: 129,
+    "label": "t = d + 5",
+    "kind": "variable",
+    "shaken": false
+  },
+  {
+    "id": "./demo/main.js:128:129",
+    "file": "./demo/main.js",
+    "range": {
+      "start": 128,
+      "end": 129
     },
-    label: "e",
-    kind: "parameter",
-    shaken: false,
-  }, {
-    id: "./demo/main.js:20:72",
-    file: "./demo/main.js",
-    range: {
-      start: 20,
-      end: 72,
+    "label": "e",
+    "kind": "parameter",
+    "shaken": false
+  },
+  {
+    "id": "./demo/main.js:20:72",
+    "file": "./demo/main.js",
+    "range": {
+      "start": 20,
+      "end": 72
     },
-    label: "function a(b, c) {\n    return c + 2 * b + globalA;\n}",
-    kind: "function",
-    shaken: false,
-  }, {
-    id: "./demo/main.js:34:35",
-    file: "./demo/main.js",
-    range: {
-      start: 34,
-      end: 35,
+    "label": "function a(b, c) {\n    return c + 2 * b + globalA;\n}",
+    "kind": "function",
+    "shaken": false
+  },
+  {
+    "id": "./demo/main.js:34:35",
+    "file": "./demo/main.js",
+    "range": {
+      "start": 34,
+      "end": 35
     },
-    label: "c",
-    kind: "parameter",
-    shaken: false,
-  }, {
-    id: "./demo/main.js:31:32",
-    file: "./demo/main.js",
-    range: {
-      start: 31,
-      end: 32,
+    "label": "c",
+    "kind": "parameter",
+    "shaken": false
+  },
+  {
+    "id": "./demo/main.js:31:32",
+    "file": "./demo/main.js",
+    "range": {
+      "start": 31,
+      "end": 32
     },
-    label: "b",
-    kind: "parameter",
-    shaken: false,
-  }, {
-    id: "./demo/main.js:125:126",
-    file: "./demo/main.js",
-    range: {
-      start: 125,
-      end: 126,
+    "label": "b",
+    "kind": "parameter",
+    "shaken": false
+  },
+  {
+    "id": "./demo/main.js:125:126",
+    "file": "./demo/main.js",
+    "range": {
+      "start": 125,
+      "end": 126
     },
-    label: "d",
-    kind: "parameter",
-    shaken: false,
-  }, {
-    id: "./demo/main.js:6:17",
-    file: "./demo/main.js",
-    range: {
-      start: 6,
-      end: 17,
+    "label": "d",
+    "kind": "parameter",
+    "shaken": false
+  },
+  {
+    "id": "./demo/main.js:6:17",
+    "file": "./demo/main.js",
+    "range": {
+      "start": 6,
+      "end": 17
     },
-    label: "globalA = 0",
-    kind: "global",
-    shaken: false,
+    "label": "globalA = 0",
+    "kind": "global",
+    "shaken": false
   }
 ]
 ```
 
 Output - 2:
+
 ```json
 [
   {
-    from: "./demo/main.js:158:173",
-    to: "./demo/main.js:73:113",
-    kind: "call",
-  }, {
-    from: "./demo/main.js:158:173",
-    to: "./demo/main.js:84:85",
-    kind: "param-bind",
-  }, {
-    from: "./demo/main.js:158:173",
-    to: "./demo/main.js:87:88",
-    kind: "param-bind",
-  }, {
-    from: "./demo/main.js:158:173",
-    to: "./demo/main.js:143:152",
-    kind: "data-flow",
-  }, {
-    from: "./demo/main.js:158:173",
-    to: "./demo/main.js:128:129",
-    kind: "data-flow",
-  }, {
-    from: "./demo/main.js:73:113",
-    to: "./demo/main.js:20:72",
-    kind: "call",
-  }, {
-    from: "./demo/main.js:73:113",
-    to: "./demo/main.js:34:35",
-    kind: "param-bind",
-  }, {
-    from: "./demo/main.js:73:113",
-    to: "./demo/main.js:31:32",
-    kind: "param-bind",
-  }, {
-    from: "./demo/main.js:143:152",
-    to: "./demo/main.js:125:126",
-    kind: "data-flow",
-  }, {
-    from: "./demo/main.js:20:72",
-    to: "./demo/main.js:6:17",
-    kind: "data-flow",
+    "from": "./demo/main.js:158:173",
+    "to": "./demo/main.js:73:113",
+    "kind": "call"
+  },
+  {
+    "from": "./demo/main.js:158:173",
+    "to": "./demo/main.js:84:85",
+    "kind": "param-bind"
+  },
+  {
+    "from": "./demo/main.js:158:173",
+    "to": "./demo/main.js:87:88",
+    "kind": "param-bind"
+  },
+  {
+    "from": "./demo/main.js:158:173",
+    "to": "./demo/main.js:143:152",
+    "kind": "data-flow"
+  },
+  {
+    "from": "./demo/main.js:158:173",
+    "to": "./demo/main.js:128:129",
+    "kind": "data-flow"
+  },
+  {
+    "from": "./demo/main.js:73:113",
+    "to": "./demo/main.js:20:72",
+    "kind": "call"
+  },
+  {
+    "from": "./demo/main.js:73:113",
+    "to": "./demo/main.js:34:35",
+    "kind": "param-bind"
+  },
+  {
+    "from": "./demo/main.js:73:113",
+    "to": "./demo/main.js:31:32",
+    "kind": "param-bind"
+  },
+  {
+    "from": "./demo/main.js:143:152",
+    "to": "./demo/main.js:125:126",
+    "kind": "data-flow"
+  },
+  {
+    "from": "./demo/main.js:20:72",
+    "to": "./demo/main.js:6:17",
+    "kind": "data-flow"
   }
 ]
 ```
 
 Output - 3:
+
 ```json
 []
 ```
@@ -304,7 +326,7 @@ const tracker = new DependencyTracker({
   // Stop recursing into these paths - they become leaf nodes in the graph
   ignorePatterns: [
     "/project/src/generated/", // string: tested with path.includes()
-    /\/vendor\//,              // RegExp: tested with pattern.test()
+    /\/vendor\//, // RegExp: tested with pattern.test()
   ],
 });
 ```
@@ -361,10 +383,16 @@ console.log(result.issues);
 const tracker = new DependencyTracker();
 
 // First call - parses and caches all files it touches
-const result1 = await tracker.track({ entryFile: "/project/src/main.ts", startPoint: { start: 10, end: 40 } });
+const result1 = await tracker.track({
+  entryFile: "/project/src/main.ts",
+  startPoint: { start: 10, end: 40 },
+});
 
 // Second call - cached files are reused; only new files are parsed
-const result2 = await tracker.track({ entryFile: "/project/src/main.ts", startPoint: { start: 55, end: 90 } });
+const result2 = await tracker.track({
+  entryFile: "/project/src/main.ts",
+  startPoint: { start: 55, end: 90 },
+});
 ```
 
 > [!TIP]\
@@ -414,17 +442,17 @@ flowchart TD
     D --> EndUnresolved([Stop: Add unresolved-leaf node])
 
     B -->|resolved| C{Path match ignore pattern?}
-    
+
     C -->|yes| E[Emit ignored-path issue and keep ImportDeclaration in slice]
     E --> EndIgnored([Stop: Add ignored-leaf node])
 
     C -->|no| F[Parse target file and find exported binding]
 
     F --> G{Binding found in target file?}
-    
+
     G -->|no| H[Emit unresolved-dependency issue]
     H --> EndNotFound([Stop: Add unresolved-leaf node])
-    
+
     G -->|yes| I([Continue: Enqueue binding in worklist])
 
     %% Styling for consistent look
@@ -479,10 +507,10 @@ const tracker = new DependencyTracker(config?: TrackerConfig);
 
 **`TrackerConfig`**
 
-| Field | Type | Default | Description |
-|---|---|---|---|
-| `resolver` | `OxcResolverOptions` | `undefined` | Options forwarded verbatim to [`oxc-resolver`](https://github.com/soranoo/oxc-resolver). |
-| `ignorePatterns` | `Array<string \| RegExp>` | `[]` | Paths to treat as leaf nodes. Strings are matched with `path.includes(pattern)`, RegExps with `pattern.test(path)`. `node_modules` is always implicitly included. |
+| Field            | Type                      | Default     | Description                                                                                                                                                       |
+| ---------------- | ------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `resolver`       | `OxcResolverOptions`      | `undefined` | Options forwarded verbatim to [`oxc-resolver`](https://github.com/soranoo/oxc-resolver).                                                                          |
+| `ignorePatterns` | `Array<string \| RegExp>` | `[]`        | Paths to treat as leaf nodes. Strings are matched with `path.includes(pattern)`, RegExps with `pattern.test(path)`. `node_modules` is always implicitly included. |
 
 **`tracker.track(request)`**
 
@@ -492,10 +520,10 @@ const result = await tracker.track(request: TrackRequest): Promise<TrackResult>
 
 **`TrackRequest`**
 
-| Field | Type | Default | Description |
-|---|---|---|---|
-| `entryFile` | `string` | required | Absolute path to the file containing the start point. |
-| `startPoint` | `OffsetRange` | required | 0-based character offset range of the start-point node. Use `offsetFromLineCol()` to convert from line/col. |
+| Field         | Type                   | Default   | Description                                                                                                                           |
+| ------------- | ---------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `entryFile`   | `string`               | required  | Absolute path to the file containing the start point.                                                                                 |
+| `startPoint`  | `OffsetRange`          | required  | 0-based character offset range of the start-point node. Use `offsetFromLineCol()` to convert from line/col.                           |
 | `output.mode` | `"blank" \| "compact"` | `"blank"` | `blank` - replaces removed code with spaces, preserving original offsets. `compact` - excises removed code, producing shorter output. |
 
 > [!IMPORTANT]\
@@ -512,8 +540,8 @@ import { offsetFromLineCol } from "@soranoo/lineage";
 
 const offset = offsetFromLineCol(
   source, // the raw source string
-  11,     // line (1-based)
-  5,      // column (1-based)
+  11, // line (1-based)
+  5, // column (1-based)
 );
 ```
 
@@ -528,10 +556,10 @@ The object returned by `tracker.track()`. All four fields are always present.
 
 ```ts
 interface TrackResult {
-  nodes:  DependencyNode[];
-  edges:  DependencyEdge[];
+  nodes: DependencyNode[];
+  edges: DependencyEdge[];
   issues: TrackerIssue[];
-  files:  Map<string, SlicedFile>;
+  files: Map<string, SlicedFile>;
 }
 ```
 
@@ -543,29 +571,29 @@ Every AST node that is part of the dependency slice, across all files.
 
 ```ts
 interface DependencyNode {
-  id:      string;          // stable unique ID: "<absolutePath>:<start>:<end>"
-  file:    string;          // absolute path of the file this node lives in
-  range:   OffsetRange;     // { start: number; end: number } - 0-based, exclusive end
-  label:   string;          // human-readable source excerpt
-  kind:    DependencyKind;  // see table below
-  shaken:  boolean;         // true = inside a dependency function but not on the return path
+  id: string; // stable unique ID: "<absolutePath>:<start>:<end>"
+  file: string; // absolute path of the file this node lives in
+  range: OffsetRange; // { start: number; end: number } - 0-based, exclusive end
+  label: string; // human-readable source excerpt
+  kind: DependencyKind; // see table below
+  shaken: boolean; // true = inside a dependency function but not on the return path
 }
 ```
 
 **`DependencyKind` values**
 
-| Value | Meaning |
-|---|---|
-| `"start-point"` | The marked node itself |
-| `"variable"` | A `const` / `let` / `var` declaration |
-| `"parameter"` | A function parameter |
-| `"function"` | An entire function declaration or expression |
-| `"call-site"` | A specific call expression within a function |
-| `"import"` | An `import` declaration |
-| `"global"` | A module-level binding outside any function |
-| `"re-export"` | A re-export that transitively brings in a dependency |
-| `"ignored-leaf"` | A binding whose resolved file matched an ignore pattern - not recursed into |
-| `"unresolved-leaf"` | A binding with no findable definition - kept as a placeholder |
+| Value               | Meaning                                                                     |
+| ------------------- | --------------------------------------------------------------------------- |
+| `"start-point"`     | The marked node itself                                                      |
+| `"variable"`        | A `const` / `let` / `var` declaration                                       |
+| `"parameter"`       | A function parameter                                                        |
+| `"function"`        | An entire function declaration or expression                                |
+| `"call-site"`       | A specific call expression within a function                                |
+| `"import"`          | An `import` declaration                                                     |
+| `"global"`          | A module-level binding outside any function                                 |
+| `"re-export"`       | A re-export that transitively brings in a dependency                        |
+| `"ignored-leaf"`    | A binding whose resolved file matched an ignore pattern - not recursed into |
+| `"unresolved-leaf"` | A binding with no findable definition - kept as a placeholder               |
 
 > [!NOTE]\
 > Nodes with `shaken: true` are still present in `nodes` so you can see exactly what was inside a dependency function but did not contribute to its return value. They are blanked/removed in the sliced output.
@@ -578,21 +606,21 @@ Directed edges describing how dependency nodes relate to each other.
 
 ```ts
 interface DependencyEdge {
-  from: string;    // DependencyNode.id - the upstream node
-  to:   string;    // DependencyNode.id - the downstream node
+  from: string; // DependencyNode.id - the upstream node
+  to: string; // DependencyNode.id - the downstream node
   kind: EdgeKind;
 }
 ```
 
 **`EdgeKind` values**
 
-| Value | Meaning |
-|---|---|
-| `"data-flow"` | The value of `from` is read by `to` |
-| `"call"` | `to` calls `from` |
+| Value          | Meaning                                         |
+| -------------- | ----------------------------------------------- |
+| `"data-flow"`  | The value of `from` is read by `to`             |
+| `"call"`       | `to` calls `from`                               |
 | `"param-bind"` | An argument at a call site binds to a parameter |
-| `"closure"` | `to` closes over the binding `from` |
-| `"import"` | `to` imports the binding `from` |
+| `"closure"`    | `to` closes over the binding `from`             |
+| `"import"`     | `to` imports the binding `from`                 |
 
 ---
 
@@ -602,31 +630,32 @@ Reported when Lineage encounters something it cannot fully resolve statically, o
 
 ```ts
 interface TrackerIssue {
-  kind:            IssueKind;
-  message:         string;               // human-readable description
-  file:            string;               // absolute path where the issue was found
-  range:           OffsetRange;          // location of the problematic node
-  resolution:      "included"            // node kept in slice despite uncertainty
-                 | "leaf"               // node kept as a non-recursed leaf
-                 | "flagged-only";      // noted but slice unchanged
-  matchedPattern?: string | RegExp;     // set on "ignored-path" issues only
+  kind: IssueKind;
+  message: string; // human-readable description
+  file: string; // absolute path where the issue was found
+  range: OffsetRange; // location of the problematic node
+  resolution:
+    | "included" // node kept in slice despite uncertainty
+    | "leaf" // node kept as a non-recursed leaf
+    | "flagged-only"; // noted but slice unchanged
+  matchedPattern?: string | RegExp; // set on "ignored-path" issues only
 }
 ```
 
 **`IssueKind` values**
 
-| Value | Trigger | Conservative action |
-|---|---|---|
-| `"unresolved-dependency"` | Binding not found in any file | Kept as `"unresolved-leaf"` |
-| `"ignored-path"` | Resolved path matched an ignore pattern | Kept as `"ignored-leaf"`; `matchedPattern` is set |
-| `"dynamic-import"` | `import(expr)` with non-literal specifier | Kept as leaf; no recursion |
-| `"computed-property"` | `obj[expr]` - property name unknown | Full object bindings included |
-| `"eval"` | `eval(...)` call | Entire enclosing scope included |
-| `"arguments-object"` | Use of `arguments` inside a function | All parameters treated as on-path |
-| `"rest-spread-unknown"` | `...spread` of unknown shape | Spread source binding included |
-| `"indirect-call"` | `const f = getFn(); f()` | Kept as leaf; no recursion into callee |
-| `"prototype-mutation"` | `Foo.prototype.x = ...` | Flagged only - cannot trace all instances |
-| `"this-call"` | `this.method()` - receiver unknown | Call included; receiver flagged |
+| Value                     | Trigger                                   | Conservative action                               |
+| ------------------------- | ----------------------------------------- | ------------------------------------------------- |
+| `"unresolved-dependency"` | Binding not found in any file             | Kept as `"unresolved-leaf"`                       |
+| `"ignored-path"`          | Resolved path matched an ignore pattern   | Kept as `"ignored-leaf"`; `matchedPattern` is set |
+| `"dynamic-import"`        | `import(expr)` with non-literal specifier | Kept as leaf; no recursion                        |
+| `"computed-property"`     | `obj[expr]` - property name unknown       | Full object bindings included                     |
+| `"eval"`                  | `eval(...)` call                          | Entire enclosing scope included                   |
+| `"arguments-object"`      | Use of `arguments` inside a function      | All parameters treated as on-path                 |
+| `"rest-spread-unknown"`   | `...spread` of unknown shape              | Spread source binding included                    |
+| `"indirect-call"`         | `const f = getFn(); f()`                  | Kept as leaf; no recursion into callee            |
+| `"prototype-mutation"`    | `Foo.prototype.x = ...`                   | Flagged only - cannot trace all instances         |
+| `"this-call"`             | `this.method()` - receiver unknown        | Call included; receiver flagged                   |
 
 > [!WARNING]\
 > An issue does not mean the slice is wrong. It means the slice may be over-inclusive in that area. Always check `resolution` to understand what action was taken.
@@ -639,9 +668,9 @@ A map from absolute file path to the edited source for that file. Only files tha
 
 ```ts
 interface SlicedFile {
-  path:           string;       // absolute file path (same as the map key)
-  ms:             MagicString;  // the edited source, call ".toString()" to get the string
-  originalSource: string;       // the original unmodified source
+  path: string; // absolute file path (same as the map key)
+  ms: MagicString; // the edited source, call ".toString()" to get the string
+  originalSource: string; // the original unmodified source
 }
 ```
 
@@ -649,8 +678,8 @@ interface SlicedFile {
 // Get the sliced source for the entry file
 const sliced = result.files.get("/project/src/main.ts");
 
-console.log(sliced?.ms.toString());       // edited source
-console.log(sliced?.originalSource);      // original source (always unchanged)
+console.log(sliced?.ms.toString()); // edited source
+console.log(sliced?.originalSource); // original source (always unchanged)
 ```
 
 > [!NOTE]\
@@ -662,11 +691,11 @@ console.log(sliced?.originalSource);      // original source (always unchanged)
 
 These are thrown at the `track()` boundary. All extend `Error`.
 
-| Class | Thrown when | Extra fields |
-|---|---|---|
-| `StartPointNotFoundError` | `startPoint` offsets match no AST node in `entryFile` | `file: string`, `requestedRange: OffsetRange` |
-| `ParseError` | A file contains syntax errors that prevent parsing | `file: string`, `oxcErrors: unknown[]` |
-| `CyclicResolutionError` | A resolution cycle bypassed the visited-set guard (should not occur in normal use) | `cycle: string[]` - the absolute paths forming the cycle |
+| Class                     | Thrown when                                                                        | Extra fields                                             |
+| ------------------------- | ---------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| `StartPointNotFoundError` | `startPoint` offsets match no AST node in `entryFile`                              | `file: string`, `requestedRange: OffsetRange`            |
+| `ParseError`              | A file contains syntax errors that prevent parsing                                 | `file: string`, `oxcErrors: unknown[]`                   |
+| `CyclicResolutionError`   | A resolution cycle bypassed the visited-set guard (should not occur in normal use) | `cycle: string[]` - the absolute paths forming the cycle |
 
 ```ts
 import {

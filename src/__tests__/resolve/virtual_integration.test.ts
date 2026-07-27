@@ -1,12 +1,11 @@
-import path from "node:path";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
+import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import type { AbsolutePath, OffsetRange, SourceText, TrackResult } from "@/types";
-
 import { DependencyTracker } from "@/index";
+import type { AbsolutePath, OffsetRange, SourceText, TrackResult } from "@/types";
 
 /**
  * Find a required range by source fragment.

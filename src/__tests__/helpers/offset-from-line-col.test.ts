@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { offsetFromLineCol } from "@/helpers/offset-from-line-col";
 import type {
   AbsolutePath,
   AstNode,
@@ -35,9 +36,7 @@ import type {
   TrackerIssue,
   TrackResult,
 } from "@/types";
-
 import { CyclicResolutionError, ParseError, StartPointNotFoundError } from "@/types";
-import { offsetFromLineCol } from "@/helpers/offset-from-line-col";
 
 type _ExportedTypes = {
   AbsolutePath: AbsolutePath;

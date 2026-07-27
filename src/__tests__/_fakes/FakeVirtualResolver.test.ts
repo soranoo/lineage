@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import type { AbsolutePath, ResolveResult, SourceText } from "@/types";
-
 import { FakeVirtualResolver } from "./FakeVirtualResolver";
+import type { AbsolutePath, ResolveResult, SourceText } from "@/types";
 
 describe("FakeVirtualResolver", () => {
   it("returns the canned per-call result", () => {

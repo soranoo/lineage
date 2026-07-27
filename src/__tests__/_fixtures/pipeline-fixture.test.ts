@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { DependencyTracker } from "@/index";
 import type {
   AbsolutePath,
   IssueKind,
@@ -11,8 +12,6 @@ import type {
   TrackResult,
   TrackerIssue,
 } from "@/types";
-
-import { DependencyTracker } from "@/index";
 
 /**
  * Absolute path to the fixture root folder.

@@ -1,13 +1,12 @@
+import type { Statement } from "@oxc-project/types";
 import { assertNever } from "assert-never";
 import { Visitor } from "oxc-parser";
 import type { VisitorObject } from "oxc-parser";
-import type { Statement } from "@oxc-project/types";
 import { describe, expect, it } from "vitest";
-
-import type { AbsolutePath, FunctionNode, OffsetRange, SourceText } from "@/types";
 
 import { OxcParser } from "@/parse/OxcParser";
 import { IntraFunctionShaker } from "@/shake/IntraFunctionShaker";
+import type { AbsolutePath, FunctionNode, OffsetRange, SourceText } from "@/types";
 
 const file: AbsolutePath = "/project/src/shake.ts";
 

@@ -3,9 +3,8 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import type { AbsolutePath, OffsetRange, OutputMode, SourceText, TrackResult } from "@/types";
-
 import { DependencyTracker } from "@/index";
+import type { AbsolutePath, OffsetRange, OutputMode, SourceText, TrackResult } from "@/types";
 
 /**
  * Absolute path to the fixture root folder.

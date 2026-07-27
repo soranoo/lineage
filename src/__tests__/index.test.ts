@@ -31,7 +31,6 @@ import type {
   TrackerConfig,
   TrackerIssue,
 } from "@/index";
-
 import { DependencyTracker, offsetFromLineCol } from "@/index";
 
 /**

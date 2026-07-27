@@ -1,5 +1,6 @@
 import type { AssignmentExpression, CallExpression } from "@oxc-project/types";
 
+import { walkAst } from "@/helpers/ast-walker";
 import type {
   AbsolutePath,
   AstNode,
@@ -11,8 +12,6 @@ import type {
   OffsetRange,
   SourceText,
 } from "@/types";
-
-import { walkAst } from "@/helpers/ast-walker";
 
 /**
  * Detects dynamic patterns that require conservative handling.

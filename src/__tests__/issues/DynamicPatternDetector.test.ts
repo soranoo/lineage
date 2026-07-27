@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import type { AbsolutePath, IssueKind, IssueResolution, SourceText, TrackerIssue } from "@/types";
-
-import { OxcParser } from "@/parse/OxcParser";
 import { DynamicPatternDetector } from "@/issues/DynamicPatternDetector";
 import { IssueCollector } from "@/issues/IssueCollector";
+import { OxcParser } from "@/parse/OxcParser";
+import type { AbsolutePath, IssueKind, IssueResolution, SourceText, TrackerIssue } from "@/types";
 
 const file: AbsolutePath = "/project/src/dynamic.ts";
 

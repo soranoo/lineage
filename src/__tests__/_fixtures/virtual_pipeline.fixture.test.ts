@@ -2,9 +2,8 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import type { AbsolutePath, OffsetRange, SourceText } from "@/types";
-
 import { DependencyTracker } from "@/index";
+import type { AbsolutePath, OffsetRange, SourceText } from "@/types";
 
 /**
  * Build an offset range for a required source fragment.
@@ -82,7 +81,8 @@ describe("virtual pipeline fixtures", () => {
   });
 
   it("supports cross-virtual imports and re-export chains", async () => {
-    const entrySource = "import { format } from './index'; export const result = format(' hello ');";
+    const entrySource =
+      "import { format } from './index'; export const result = format(' hello ');";
 
     const tracker = new DependencyTracker({
       virtualFiles: {

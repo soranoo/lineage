@@ -1,6 +1,3 @@
-import { assertNever } from "assert-never";
-import { Visitor } from "oxc-parser";
-import type { VisitorObject } from "oxc-parser";
 import type {
   AssignmentExpression,
   AssignmentTarget,
@@ -21,9 +18,12 @@ import type {
   VariableDeclaration,
   VariableDeclarator,
 } from "@oxc-project/types";
+import { assertNever } from "assert-never";
+import { Visitor } from "oxc-parser";
+import type { VisitorObject } from "oxc-parser";
 
-import type { FunctionNode, OffsetRange, SourceText } from "@/types";
 import type { IShaker } from "@/shake/Shaker";
+import type { FunctionNode, OffsetRange, SourceText } from "@/types";
 
 /**
  * Analysis result for a statement list.

@@ -37,15 +37,15 @@
 
 ## 🛠️ Stack and Tooling
 
-| Tool | Purpose | Notes |
-|---|---|---|
-| **Bun** | Runtime, package manager, test runner | Use `bun` only, not `node` or `npm` |
-| **Vitest** | Test framework | Config in `vitest.config.ts` |
-| **oxc-parser** | AST parsing |  |
-| **oxc-resolver** | Module resolution | Wraps Node.js ESM and CJS algorithm |
-| **magic-string** | Source editing | Used only in `MagicStringEditor` |
-| **assert-never** | Exhaustiveness checking | Required in every finite union `switch` default case |
-| **neverthrow** | Result type | Use `Result<T, E>` for fallible internal operations |
+| Tool             | Purpose                               | Notes                                                |
+| ---------------- | ------------------------------------- | ---------------------------------------------------- |
+| **Bun**          | Runtime, package manager, test runner | Use `bun` only, not `node` or `npm`                  |
+| **Vitest**       | Test framework                        | Config in `vitest.config.ts`                         |
+| **oxc-parser**   | AST parsing                           |                                                      |
+| **oxc-resolver** | Module resolution                     | Wraps Node.js ESM and CJS algorithm                  |
+| **magic-string** | Source editing                        | Used only in `MagicStringEditor`                     |
+| **assert-never** | Exhaustiveness checking               | Required in every finite union `switch` default case |
+| **neverthrow**   | Result type                           | Use `Result<T, E>` for fallible internal operations  |
 
 ### Path Alias `@/` = `src/`
 
@@ -54,15 +54,15 @@ All imports that cross folder boundaries must use the `@/` alias. Relative paths
 ```ts
 // correct - alias for any cross-folder import
 import type { OffsetRange } from "@/types";
-import { OxcParser }        from "@/parse/OxcParser";
-import { IssueCollector }   from "@/issues/IssueCollector";
+import { OxcParser } from "@/parse/OxcParser";
+import { IssueCollector } from "@/issues/IssueCollector";
 
 // acceptable - same folder, one segment only
 import { buildNodeId } from "./nodeId";
 
 // banned - relative path crossing a folder boundary
 import type { OffsetRange } from "../../types";
-import { OxcParser }        from "../parse/OxcParser";
+import { OxcParser } from "../parse/OxcParser";
 ```
 
 ### Import Order
@@ -74,16 +74,16 @@ All imports follow this order, with a blank line between each group:
 import path from "node:path";
 
 // Group 2 - Third-party packages
-import MagicString     from "magic-string";
+import MagicString from "magic-string";
 import { assertNever } from "assert-never";
-import { ok, err }     from "neverthrow";
+import { ok, err } from "neverthrow";
 
 // Group 3 - Internal types only (always type-only import, always @/ alias)
 import type { OffsetRange, TrackerIssue } from "@/types";
 
 // Group 4 - Internal values (@/ alias)
 import { IssueCollector } from "@/issues/IssueCollector";
-import { IgnoreFilter }   from "@/resolve/IgnoreFilter";
+import { IgnoreFilter } from "@/resolve/IgnoreFilter";
 ```
 
 Additional rules:
@@ -238,11 +238,18 @@ Every `switch` over a finite union must have a `default` case that calls `assert
 import { assertNever } from "assert-never";
 
 switch (node.kind) {
-  case "variable":  handleVariable(node);  break;
-  case "function":  handleFunction(node);  break;
-  case "parameter": handleParameter(node); break;
+  case "variable":
+    handleVariable(node);
+    break;
+  case "function":
+    handleFunction(node);
+    break;
+  case "parameter":
+    handleParameter(node);
+    break;
   // ... all members listed
-  default: assertNever(node.kind);
+  default:
+    assertNever(node.kind);
 }
 ```
 
@@ -550,14 +557,14 @@ src/__tests__/
 
 ### Naming Conventions
 
-| Thing | Convention | Example |
-|---|---|---|
-| Class or interface file | `PascalCase.ts` | `OxcParser.ts`, `Parser.ts` |
-| Pure helper or utility file | `kebab-case.ts` | `offset-from-line-col.ts` |
-| Test file | `PascalCase.test.ts` or `kebab-case.test.ts` mirroring the source | `OxcParser.test.ts` |
-| Fake file | `fake-<name>.ts` | `fake-parser.ts` |
-| Fixture source folder | `kebab-case/` | `linear-chain/` |
-| Non-mirrored test folder | `_kebab-case/` | `_fakes/`, `_fixtures/` |
+| Thing                       | Convention                                                        | Example                     |
+| --------------------------- | ----------------------------------------------------------------- | --------------------------- |
+| Class or interface file     | `PascalCase.ts`                                                   | `OxcParser.ts`, `Parser.ts` |
+| Pure helper or utility file | `kebab-case.ts`                                                   | `offset-from-line-col.ts`   |
+| Test file                   | `PascalCase.test.ts` or `kebab-case.test.ts` mirroring the source | `OxcParser.test.ts`         |
+| Fake file                   | `fake-<name>.ts`                                                  | `fake-parser.ts`            |
+| Fixture source folder       | `kebab-case/`                                                     | `linear-chain/`             |
+| Non-mirrored test folder    | `_kebab-case/`                                                    | `_fakes/`, `_fixtures/`     |
 
 > [!NOTE]\
 > The naming rule is simple: if the file's primary export is a class or interface, use `PascalCase.ts`. Everything else uses `kebab-case.ts`. Test files mirror their source file name exactly with `.test.ts` appended.

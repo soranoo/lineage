@@ -3,10 +3,9 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import type { AbsolutePath, OffsetRange, SourceText } from "@/types";
-
 import { DependencyTracker } from "@/index";
 import { OxcParser } from "@/parse/OxcParser";
+import type { AbsolutePath, OffsetRange, SourceText } from "@/types";
 
 /**
  * Absolute path to the fixture root folder.
