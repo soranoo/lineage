@@ -1,4 +1,4 @@
-import type { IResolver } from "@/resolve/Resolver";
+import type { IResolver } from "@/resolve";
 import type { AbsolutePath, ResolveResult, SourceText } from "@/types";
 
 /**

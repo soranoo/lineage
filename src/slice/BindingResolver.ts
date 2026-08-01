@@ -1,7 +1,7 @@
 import assertNever from "assert-never";
 import { visitorKeys } from "oxc-parser";
 
-import { isAstNode } from "@/helpers/ast-walker";
+import { isAstNode } from "@/helpers";
 import type { AstNode, ParsedFile, SourceText } from "@/types";
 
 /**

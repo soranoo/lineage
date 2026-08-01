@@ -2,10 +2,10 @@ import type { ArrowFunctionExpression, Function, Node, Program } from "@oxc-proj
 import type MagicString from "magic-string";
 import type { NapiResolveOptions } from "oxc-resolver";
 
-export type { IParser } from "@/parse/Parser";
-export type { IResolver } from "@/resolve/Resolver";
-export type { IShaker } from "@/shake/Shaker";
-export type { IEditor } from "@/edit/Editor";
+export type { IParser } from "@/parse";
+export type { IResolver } from "@/resolve";
+export type { IShaker } from "@/shake";
+export type { IEditor } from "@/edit";
 
 /**
  * An absolute file system path starting with `/`.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { IResolver } from "@/resolve/Resolver";
+import type { IResolver } from "@/resolve";
 import type { AbsolutePath, ResolveResult, SourceText } from "@/types";
 
 /**
@@ -18,12 +18,6 @@ class ValidResolver implements IResolver {
     kind: "failed",
   });
 }
-
-/**
- * Resolver missing resolve method for compile-time checks.
- */
-// @ts-expect-error Missing resolve method.
-class MissingResolve implements IResolver {}
 
 describe("IResolver", () => {
   it("accepts a valid implementation", () => {

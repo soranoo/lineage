@@ -3,10 +3,10 @@ import { describe, expect, it } from "vitest";
 import { FakeParser } from "@/__tests__/_fakes/FakeParser";
 import { FakeResolver } from "@/__tests__/_fakes/FakeResolver";
 import { FakeShaker } from "@/__tests__/_fakes/FakeShaker";
-import { walkAst } from "@/helpers/ast-walker";
-import { IssueCollector } from "@/issues/IssueCollector";
-import { OxcParser } from "@/parse/OxcParser";
-import { BackwardSlicer } from "@/slice/BackwardSlicer";
+import { walkAst } from "@/helpers";
+import { IssueCollector } from "@/issues";
+import { OxcParser } from "@/parse";
+import { BackwardSlicer } from "@/slice";
 import type {
   AbsolutePath,
   AstNode,
@@ -20,11 +20,6 @@ import type {
 
 type ReturnStatementNode = AstNode & { type: "ReturnStatement" };
 type VariableDeclarationNode = AstNode & { type: "VariableDeclaration" };
-type FunctionDeclarationNode = AstNode & {
-  type: "FunctionDeclaration";
-  id?: { name?: SourceText } | null;
-};
-type CallExpressionNode = AstNode & { type: "CallExpression" };
 
 /**
  * Source entry for multi-file parsing.
@@ -184,30 +179,6 @@ const isVariableDeclaratorNamed =
   (name: SourceText) =>
   (node: AstNode): node is AstNode =>
     node.type === "VariableDeclarator" && node.id.type === "Identifier" && node.id.name === name;
-
-/**
- * Check whether a node is a function declaration with the given name.
- *
- * @param name Identifier name to match.
- * @returns Predicate for FunctionDeclaration.
- */
-const isFunctionDeclarationNamed =
-  (name: SourceText) =>
-  (node: AstNode): node is FunctionDeclarationNode =>
-    node.type === "FunctionDeclaration" && node.id?.name === name;
-
-/**
- * Check whether a node is a call expression with a given callee name.
- *
- * @param name Identifier name to match.
- * @returns Predicate for CallExpression.
- */
-const isCallExpressionNamed =
-  (name: SourceText) =>
-  (node: AstNode): node is CallExpressionNode =>
-    node.type === "CallExpression" &&
-    node.callee.type === "Identifier" &&
-    node.callee.name === name;
 
 /**
  * Check whether a node is an arrow function expression.

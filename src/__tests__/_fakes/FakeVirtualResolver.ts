@@ -1,6 +1,5 @@
-import type { IResolver } from "@/resolve/Resolver";
+import type { IResolver } from "@/resolve";
 import type { AbsolutePath, ResolveResult, SourceText } from "@/types";
-
 /**
  * In-memory resolver keyed by "specifier::fromFile" pairs.
  */

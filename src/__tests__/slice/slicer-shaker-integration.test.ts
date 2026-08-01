@@ -3,11 +3,11 @@ import { describe, expect, it } from "vitest";
 
 import { FakeParser } from "@/__tests__/_fakes/FakeParser";
 import { FakeResolver } from "@/__tests__/_fakes/FakeResolver";
-import { walkAst } from "@/helpers/ast-walker";
-import { IssueCollector } from "@/issues/IssueCollector";
-import { OxcParser } from "@/parse/OxcParser";
-import { IntraFunctionShaker } from "@/shake/IntraFunctionShaker";
-import { BackwardSlicer } from "@/slice/BackwardSlicer";
+import { walkAst } from "@/helpers";
+import { IssueCollector } from "@/issues";
+import { OxcParser } from "@/parse";
+import { IntraFunctionShaker } from "@/shake";
+import { BackwardSlicer } from "@/slice";
 import type { AbsolutePath, AstNode, OffsetRange, ParsedFile, SourceText } from "@/types";
 
 /**

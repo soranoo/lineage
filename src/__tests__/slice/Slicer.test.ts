@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { ISlicer } from "@/slice/Slicer";
+import type { ISlicer } from "@/slice";
 import type { AbsolutePath, OffsetRange, ParsedFile, SliceResult } from "@/types";
 
 /**
@@ -25,12 +25,6 @@ class ValidSlicer implements ISlicer {
     visitedRanges: new Set(),
   });
 }
-
-/**
- * Slicer missing slice method for compile-time checks.
- */
-// @ts-expect-error Missing slice method.
-class MissingSlice implements ISlicer {}
 
 describe("ISlicer", () => {
   it("accepts a valid implementation", () => {

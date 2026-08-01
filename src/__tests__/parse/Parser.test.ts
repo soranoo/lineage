@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { IParser } from "@/parse/Parser";
+import type { IParser } from "@/parse";
 import type { AbsolutePath, OxcAst, ParsedFile, SourceText } from "@/types";
 
 /**
@@ -50,35 +50,6 @@ class ValidParser implements IParser {
    * @returns Empty parse cache.
    */
   readonly getCache = (): Map<AbsolutePath, ParsedFile> => new Map();
-}
-
-/**
- * Parser missing parse method for compile-time checks.
- */
-// @ts-expect-error Missing parse method.
-class MissingParse implements IParser {
-  /**
-   * Return an empty cache for the test parser.
-   *
-   * @returns Empty parse cache.
-   */
-  readonly getCache = (): Map<AbsolutePath, ParsedFile> => new Map();
-}
-
-/**
- * Parser missing getCache method for compile-time checks.
- */
-// @ts-expect-error Missing getCache method.
-class MissingCache implements IParser {
-  /**
-   * Return a ParsedFile for the provided path and source.
-   *
-   * @param absolutePath Absolute path of the file.
-   * @param source Source text to associate with the file.
-   * @returns ParsedFile instance for the provided inputs.
-   */
-  readonly parse = (absolutePath: AbsolutePath, source: SourceText): ParsedFile =>
-    buildParsedFile(absolutePath, source);
 }
 
 describe("IParser", () => {

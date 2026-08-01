@@ -1,7 +1,7 @@
 import MagicString from "magic-string";
 import { describe, expect, it } from "vitest";
 
-import type { IEditor } from "@/edit/Editor";
+import type { IEditor } from "@/edit";
 import type { OffsetRange, OutputMode, SourceText } from "@/types";
 
 /**
@@ -23,12 +23,6 @@ class ValidEditor implements IEditor {
     _mode: OutputMode,
   ): void => {};
 }
-
-/**
- * Editor missing apply method for compile-time checks.
- */
-// @ts-expect-error Missing apply method.
-class MissingApply implements IEditor {}
 
 describe("IEditor", () => {
   it("accepts a valid implementation", () => {

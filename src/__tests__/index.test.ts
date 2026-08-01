@@ -103,14 +103,6 @@ describe("package entry exports", () => {
       resolution: "leaf",
     } satisfies TrackerIssue;
 
-    const slicedFile = {
-      path: absolutePath,
-      ms: {
-        toString: () => sourceText,
-      },
-      originalSource: sourceText,
-    } satisfies Pick<SlicedFile, "path" | "originalSource"> & { ms: { toString: () => string } };
-
     const trackResult = {
       files: new Map<AbsolutePath, SlicedFile>(),
       nodes: [dependencyNode],

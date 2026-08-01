@@ -1,6 +1,6 @@
 import { assertNever } from "assert-never";
 
-import { walkAst } from "@/helpers/ast-walker";
+import { walkAst } from "@/helpers";
 import type { AstNode, OffsetRange, SeedNode, SourceText } from "@/types";
 
 /**

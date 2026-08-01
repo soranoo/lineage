@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { offsetFromLineCol } from "@/helpers/offset-from-line-col";
+import { offsetFromLineCol } from "@/helpers";
 import type {
   AbsolutePath,
   AstNode,

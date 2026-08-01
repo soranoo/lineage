@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { IgnoreFilter } from "@/resolve/IgnoreFilter";
+import { IgnoreFilter } from "@/resolve";
 import type { AbsolutePath } from "@/types";
 
 /**

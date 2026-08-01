@@ -1,6 +1,6 @@
 import type { AssignmentExpression, CallExpression } from "@oxc-project/types";
 
-import { walkAst } from "@/helpers/ast-walker";
+import { walkAst } from "@/helpers";
 import type {
   AbsolutePath,
   AstNode,
