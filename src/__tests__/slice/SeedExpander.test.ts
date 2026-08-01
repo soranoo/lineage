@@ -7,51 +7,9 @@ import type {
 } from "@oxc-project/types";
 import { describe, expect, it } from "vitest";
 
-import { walkAst } from "@/helpers";
-import { OxcParser } from "@/parse";
+import { findNode, parseSource, toRange } from "@/__tests__/utils";
 import { SeedExpander } from "@/slice";
-import type { AbsolutePath, AstNode, OffsetRange, ParsedFile, SourceText } from "@/types";
-
-const entryFile: AbsolutePath = "/project/src/seed.ts";
-
-/**
- * Parse source text into a ParsedFile.
- *
- * @param source Source text to parse.
- * @returns ParsedFile for the provided source.
- */
-const parseSource = (source: SourceText): ParsedFile => {
-  const parser = new OxcParser();
-  return parser.parse(entryFile, source);
-};
-
-/**
- * Find the first AST node matching the predicate.
- *
- * @param root Root AST node.
- * @param predicate Predicate narrowing the node.
- * @param message Error message when not found.
- * @returns Matching AST node.
- */
-const findNode = <T extends AstNode>(
-  root: AstNode,
-  predicate: (node: AstNode) => node is T,
-  message: string,
-): T => {
-  let found: T | null = null;
-
-  walkAst(root, (node) => {
-    if (!found && predicate(node)) {
-      found = node;
-    }
-  });
-
-  if (!found) {
-    throw new Error(message);
-  }
-
-  return found;
-};
+import type { AstNode, SourceText } from "@/types";
 
 /**
  * Check whether a node is a return statement.
@@ -120,14 +78,6 @@ const isCallExpressionNamed =
     node.type === "CallExpression" &&
     node.callee.type === "Identifier" &&
     node.callee.name === name;
-
-/**
- * Convert an AST node to an offset range.
- *
- * @param node AST node to convert.
- * @returns Offset range for the node.
- */
-const toRange = (node: AstNode): OffsetRange => ({ start: node.start, end: node.end });
 
 /**
  * Sort binding names for deterministic assertions.

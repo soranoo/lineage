@@ -2,25 +2,9 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { findRange } from "@/__tests__/utils";
 import { DependencyTracker } from "@/index";
-import type { AbsolutePath, OffsetRange, SourceText } from "@/types";
-
-/**
- * Build an offset range for a required source fragment.
- *
- * @param source Source text to search.
- * @param fragment Required fragment text.
- * @returns Offset range spanning the fragment.
- */
-const rangeForFragment = (source: SourceText, fragment: SourceText): OffsetRange => {
-  const start = source.indexOf(fragment);
-
-  if (start < 0) {
-    throw new Error(`Fragment not found: ${fragment}`);
-  }
-
-  return { start, end: start + fragment.length };
-};
+import type { AbsolutePath } from "@/types";
 
 describe("virtual pipeline fixtures", () => {
   it("matches linear chain behavior in virtual mode", async () => {
@@ -43,7 +27,7 @@ describe("virtual pipeline fixtures", () => {
 
     const result = await tracker.track({
       entryFile: "/virtual/main.ts",
-      startPoint: rangeForFragment(entrySource, "return b(t, e);"),
+      startPoint: findRange(entrySource, "return b(t, e);"),
     });
 
     expect(result.nodes.length).toBeGreaterThanOrEqual(7);
@@ -73,7 +57,7 @@ describe("virtual pipeline fixtures", () => {
 
     const result = await tracker.track({
       entryFile: "/virtual/main.ts",
-      startPoint: rangeForFragment(entrySource, "result = compute(10)"),
+      startPoint: findRange(entrySource, "result = compute(10)"),
     });
 
     const shakenCount = result.nodes.filter((node) => node.shaken).length;
@@ -95,7 +79,7 @@ describe("virtual pipeline fixtures", () => {
 
     const result = await tracker.track({
       entryFile: "/virtual/main.ts",
-      startPoint: rangeForFragment(entrySource, "result = format(' hello ')"),
+      startPoint: findRange(entrySource, "result = format(' hello ')"),
     });
 
     expect(result.nodes.some((node) => node.kind === "re-export")).toBe(true);
@@ -122,7 +106,7 @@ describe("virtual pipeline fixtures", () => {
 
     const result = await tracker.track({
       entryFile: "/virtual/main.ts",
-      startPoint: rangeForFragment(entrySource, "result = target"),
+      startPoint: findRange(entrySource, "result = target"),
     });
 
     expect(result.nodes.some((node) => node.file === "/virtual/main.ts")).toBe(true);
@@ -141,7 +125,7 @@ describe("virtual pipeline fixtures", () => {
         "/virtual/main.ts": entrySource,
       },
     });
-    const startPoint = rangeForFragment(entrySource, "result = used");
+    const startPoint = findRange(entrySource, "result = used");
 
     const blankResult = await tracker.track({
       entryFile: "/virtual/main.ts",

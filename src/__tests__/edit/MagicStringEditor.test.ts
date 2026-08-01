@@ -1,6 +1,7 @@
 import MagicString from "magic-string";
 import { describe, expect, it } from "vitest";
 
+import { findRange } from "@/__tests__/utils";
 import { MagicStringEditor } from "@/edit";
 import type { CharOffset, OffsetRange, SourceText } from "@/types";
 
@@ -20,25 +21,6 @@ const buildRange = (start: CharOffset, end: CharOffset): OffsetRange => ({ start
  * @returns Set containing the provided ranges.
  */
 const buildKeepRanges = (ranges: OffsetRange[]): Set<OffsetRange> => new Set(ranges);
-
-/**
- * Find the first occurrence of a fragment and return its range.
- *
- * @param source Source text to search.
- * @param fragment Fragment that must exist within the source.
- * @returns OffsetRange covering the fragment.
- */
-const findRange = (source: SourceText, fragment: SourceText): OffsetRange => {
-  const start: CharOffset = source.indexOf(fragment);
-
-  if (start < 0) {
-    throw new Error(`Fragment not found: ${fragment}`);
-  }
-
-  const end: CharOffset = start + fragment.length;
-
-  return { start, end };
-};
 
 /**
  * Build a keep range set for the provided source fragments.

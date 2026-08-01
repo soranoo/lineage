@@ -1,51 +1,8 @@
-import { readFileSync } from "node:fs";
-import path from "node:path";
-
 import { describe, expect, it } from "vitest";
 
+import { findRange, readFixtureSource, toFixturePath } from "@/__tests__/utils";
 import { DependencyTracker } from "@/index";
-import type { AbsolutePath, OffsetRange, OutputMode, SourceText, TrackResult } from "@/types";
-
-/**
- * Absolute path to the fixture root folder.
- */
-const fixturesRoot: AbsolutePath = path.resolve(process.cwd(), "src/__tests__/_fixtures");
-
-/**
- * Build an absolute path for a fixture file.
- *
- * @param relativePath Relative fixture file path under the fixture root.
- * @returns Absolute fixture file path.
- */
-const toFixturePath = (relativePath: SourceText): AbsolutePath =>
-  path.resolve(fixturesRoot, relativePath);
-
-/**
- * Read fixture source text from disk.
- *
- * @param relativePath Relative fixture file path under the fixture root.
- * @returns UTF-8 fixture source text.
- */
-const readFixtureSource = (relativePath: SourceText): SourceText =>
-  readFileSync(toFixturePath(relativePath), "utf8");
-
-/**
- * Find an offset range for a required source fragment.
- *
- * @param source Source text to search.
- * @param fragment Required fragment that must exist in the source.
- * @returns Offset range spanning the first match of the fragment.
- * @throws {Error} When the fragment cannot be found.
- */
-const rangeForFragment = (source: SourceText, fragment: SourceText): OffsetRange => {
-  const start = source.indexOf(fragment);
-
-  if (start < 0) {
-    throw new Error(`Fragment not found: ${fragment}`);
-  }
-
-  return { start, end: start + fragment.length };
-};
+import type { AbsolutePath, OutputMode, SourceText, TrackResult } from "@/types";
 
 /**
  * Create a whitespace-only string of the same length as the input.
@@ -76,7 +33,7 @@ const trackOutput = async (
 }> => {
   const entryFile = toFixturePath(relativePath);
   const source = readFixtureSource(relativePath);
-  const startPoint = rangeForFragment(source, fragment);
+  const startPoint = findRange(source, fragment);
   const tracker = new DependencyTracker();
   const result = await tracker.track({
     entryFile,

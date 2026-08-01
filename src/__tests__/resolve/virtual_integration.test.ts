@@ -4,25 +4,9 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { findRange } from "@/__tests__/utils";
 import { DependencyTracker } from "@/index";
-import type { AbsolutePath, OffsetRange, SourceText, TrackResult } from "@/types";
-
-/**
- * Find a required range by source fragment.
- *
- * @param source Source text to search.
- * @param fragment Required fragment that must exist.
- * @returns Range spanning the fragment.
- */
-const findRange = (source: SourceText, fragment: SourceText): OffsetRange => {
-  const start = source.indexOf(fragment);
-
-  if (start < 0) {
-    throw new Error(`Fragment not found: ${fragment}`);
-  }
-
-  return { start, end: start + fragment.length };
-};
+import type { AbsolutePath, SourceText, TrackResult } from "@/types";
 
 /**
  * Build a map from node ID to file path.
