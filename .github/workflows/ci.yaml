@@ -16,6 +16,18 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun test
       - run: bun typecheck
+      - run: bun lint
+  fmt-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      - run: bun run fmt:check
+      - run: bun run lint
   release:
     runs-on: ubuntu-latest
     permissions:

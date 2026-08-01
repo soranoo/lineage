@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { FakeResolver } from "./FakeResolver";
 import type { AbsolutePath, ResolveResult, SourceText } from "@/types";
+
+import { FakeResolver } from "./FakeResolver";
 
 describe("FakeResolver", () => {
   it("returns mapped results or failed", () => {
