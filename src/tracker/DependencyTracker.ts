@@ -3,16 +3,14 @@ import { readFileSync } from "node:fs";
 import { assertNever } from "assert-never";
 import MagicString from "magic-string";
 
-import { MagicStringEditor } from "@/edit/MagicStringEditor";
-import { walkAst } from "@/helpers/ast-walker";
-import { DynamicPatternDetector } from "@/issues/DynamicPatternDetector";
-import { IssueCollector } from "@/issues/IssueCollector";
-import { OxcParser } from "@/parse/OxcParser";
-import { IgnoreFilter } from "@/resolve/IgnoreFilter";
-import { OxcResolver } from "@/resolve/OxcResolver";
-import { VirtualAwareResolver } from "@/resolve/VirtualAwareResolver";
-import { IntraFunctionShaker } from "@/shake/IntraFunctionShaker";
-import { BackwardSlicer } from "@/slice/BackwardSlicer";
+import { MagicStringEditor } from "@/edit";
+import { walkAst } from "@/helpers";
+import { DynamicPatternDetector, IssueCollector } from "@/issues";
+import { OxcParser } from "@/parse";
+import { IgnoreFilter, OxcResolver } from "@/resolve";
+import { VirtualAwareResolver } from "@/resolve";
+import { IntraFunctionShaker } from "@/shake";
+import { BackwardSlicer } from "@/slice";
 import type {
   AbsolutePath,
   AstNode,

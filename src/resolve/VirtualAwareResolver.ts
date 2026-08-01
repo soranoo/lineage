@@ -2,9 +2,8 @@ import path from "node:path";
 
 import { assertNever } from "assert-never";
 
-import { IgnoreFilter } from "@/resolve/IgnoreFilter";
-import { OxcResolver } from "@/resolve/OxcResolver";
-import type { IResolver } from "@/resolve/Resolver";
+import { OxcResolver, IgnoreFilter } from "@/resolve";
+import type { IResolver } from "@/resolve";
 import type {
   AbsolutePath,
   IgnorePattern,

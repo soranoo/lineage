@@ -3,11 +3,10 @@ import { describe, expect, it } from "vitest";
 import { FakeParser } from "@/__tests__/_fakes/FakeParser";
 import { FakeResolver } from "@/__tests__/_fakes/FakeResolver";
 import { FakeShaker } from "@/__tests__/_fakes/FakeShaker";
-import { walkAst } from "@/helpers/ast-walker";
-import { isAstNode } from "@/helpers/ast-walker";
-import { IssueCollector } from "@/issues/IssueCollector";
-import { OxcParser } from "@/parse/OxcParser";
-import { BackwardSlicer } from "@/slice/BackwardSlicer";
+import { isAstNode, walkAst } from "@/helpers";
+import { IssueCollector } from "@/issues";
+import { OxcParser } from "@/parse";
+import { BackwardSlicer } from "@/slice";
 import type {
   AbsolutePath,
   AstNode,
@@ -114,15 +113,6 @@ const hasEdge = (
   toId: SourceText,
   kind: SourceText,
 ): boolean => edges.some((edge) => edge.from === fromId && edge.to === toId && edge.kind === kind);
-
-/**
- * Check whether a node is a return statement.
- *
- * @param node AST node to inspect.
- * @returns True when the node is a return statement.
- */
-const isReturnStatement = (node: AstNode): node is ReturnStatementNode =>
-  node.type === "ReturnStatement";
 
 /**
  * Check whether a return statement returns a call to the given callee.

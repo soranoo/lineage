@@ -4,7 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { DependencyTracker } from "@/index";
-import { OxcParser } from "@/parse/OxcParser";
+import { OxcParser } from "@/parse";
 import type { AbsolutePath, OffsetRange, SourceText } from "@/types";
 
 /**

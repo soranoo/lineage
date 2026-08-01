@@ -1,7 +1,7 @@
 import { assertNever } from "assert-never";
 import MagicString from "magic-string";
 
-import type { IEditor } from "@/edit/Editor";
+import type { IEditor } from "@/edit";
 import type { CharOffset, OffsetRange, OutputMode, SourceText } from "@/types";
 
 /**

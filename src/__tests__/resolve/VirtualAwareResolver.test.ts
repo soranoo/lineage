@@ -3,9 +3,7 @@ import path from "node:path";
 import { assertNever } from "assert-never";
 import { describe, expect, it, vi } from "vitest";
 
-import { IgnoreFilter } from "@/resolve/IgnoreFilter";
-import { OxcResolver } from "@/resolve/OxcResolver";
-import { VirtualAwareResolver } from "@/resolve/VirtualAwareResolver";
+import { IgnoreFilter, OxcResolver, VirtualAwareResolver } from "@/resolve";
 import type { AbsolutePath, ResolutionTier, ResolveResult } from "@/types";
 import { InvalidVirtualPathError } from "@/types";
 

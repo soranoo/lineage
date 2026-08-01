@@ -8,12 +8,13 @@ import { describe, expect, it } from "vitest";
 import { FakeParser } from "@/__tests__/_fakes/FakeParser";
 import { FakeResolver } from "@/__tests__/_fakes/FakeResolver";
 import { FakeShaker } from "@/__tests__/_fakes/FakeShaker";
-import { offsetFromLineCol } from "@/helpers/offset-from-line-col";
-import { IssueCollector } from "@/issues/IssueCollector";
-import { OxcParser } from "@/parse/OxcParser";
+import { offsetFromLineCol } from "@/helpers";
+import { IssueCollector } from "@/issues";
+import { OxcParser } from "@/parse";
 import type {
   AbsolutePath,
   CharOffset,
+  CyclicResolutionError,
   IIssueCollector,
   IParser,
   IResolver,
@@ -28,6 +29,8 @@ import type {
 } from "@/types";
 import { StartPointNotFoundError } from "@/types";
 import { InvalidVirtualPathError } from "@/types";
+import { CyclicResolutionError as CyclicResolutionErrorClass } from "@/types";
+import { ParseError as ParseErrorClass } from "@/types";
 
 /**
  * Runtime shape expected from a tracker instance.
@@ -130,6 +133,32 @@ class CountingFakeParser implements IParser {
    * @returns Parse invocation count.
    */
   readonly getParseCount = (): number => this.parseCount;
+}
+
+/**
+ * Resolver fake that throws a cyclic-resolution error on every call.
+ */
+class ThrowingCycleResolver implements IResolver {
+  private readonly cycle: AbsolutePath[];
+
+  /**
+   * Create a resolver fake with a fixed cycle payload.
+   *
+   * @param cycle Ordered cycle path to attach to thrown errors.
+   */
+  constructor(cycle: AbsolutePath[]) {
+    this.cycle = cycle;
+  }
+
+  /**
+   * Throw a cyclic-resolution error for any resolve request.
+   *
+   * @returns This method never returns.
+   * @throws {CyclicResolutionError} Always.
+   */
+  readonly resolve = (_specifier: SourceText, _fromFile: AbsolutePath): ResolveResult => {
+    throw new CyclicResolutionErrorClass(this.cycle);
+  };
 }
 
 /**
@@ -447,6 +476,90 @@ describe("DependencyTracker", () => {
           startPoint: missingStartPoint,
         }),
       ).rejects.toThrow(StartPointNotFoundError);
+
+      await expect(
+        tracker.track({
+          entryFile,
+          startPoint: missingStartPoint,
+        }),
+      ).rejects.toMatchObject({
+        requestedRange: missingStartPoint,
+      } satisfies Pick<StartPointNotFoundError, "requestedRange">);
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  it("throws CyclicResolutionError with cycle details when resolution produces a cycle", async () => {
+    const fixture = createFixtureContext([
+      {
+        relativePath: "entry.ts",
+        source: ["import { value } from './dep.ts';", "export const result = value;"].join("\n"),
+      },
+    ]);
+
+    try {
+      const entryFile = requireFixturePath(fixture, "entry.ts");
+      const source = requireFixtureSource(fixture, entryFile);
+      const cycle: AbsolutePath[] = [entryFile, `${entryFile}::dep`, entryFile];
+      const resolver = new ThrowingCycleResolver(cycle);
+      const tracker = await createTracker({}, { resolver });
+
+      await expect(
+        tracker.track({
+          entryFile,
+          startPoint: findRangeForFragment(source, "result = value"),
+        }),
+      ).rejects.toThrow(CyclicResolutionErrorClass);
+
+      await expect(
+        tracker.track({
+          entryFile,
+          startPoint: findRangeForFragment(source, "result = value"),
+        }),
+      ).rejects.toMatchObject({
+        cycle,
+      } satisfies Pick<CyclicResolutionError, "cycle">);
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  it("throws ParseError with non-empty oxcErrors on invalid syntax", async () => {
+    const fixture = createFixtureContext([
+      {
+        relativePath: "broken.ts",
+        source: "export const value = ;",
+      },
+    ]);
+
+    try {
+      const entryFile = requireFixturePath(fixture, "broken.ts");
+      const tracker = await createTracker({});
+
+      await expect(
+        tracker.track({
+          entryFile,
+          startPoint: { start: 0, end: 1 },
+        }),
+      ).rejects.toThrow(ParseErrorClass);
+
+      try {
+        await tracker.track({
+          entryFile,
+          startPoint: { start: 0, end: 1 },
+        });
+      } catch (error) {
+        if (!(error instanceof ParseErrorClass)) {
+          throw error;
+        }
+
+        expect(Array.isArray(error.oxcErrors)).toBe(true);
+        expect(error.oxcErrors.length).toBeGreaterThan(0);
+        return;
+      }
+
+      throw new Error("Expected ParseError to be thrown for invalid syntax.");
     } finally {
       fixture.cleanup();
     }
@@ -912,13 +1025,25 @@ describe("DependencyTracker", () => {
   });
 
   it("throws InvalidVirtualPathError when a virtual key is not absolute", async () => {
+    const invalidPath = "relative/file.ts";
+
     await expect(
       createTracker({
         virtualFiles: {
-          "relative/file.ts": "export const value = 1;",
+          [invalidPath]: "export const value = 1;",
         },
       }),
     ).rejects.toThrow(InvalidVirtualPathError);
+
+    await expect(
+      createTracker({
+        virtualFiles: {
+          [invalidPath]: "export const value = 1;",
+        },
+      }),
+    ).rejects.toMatchObject({
+      invalidPath,
+    } satisfies Pick<InvalidVirtualPathError, "invalidPath">);
   });
 
   it("tracks virtual entry files without reading disk", async () => {

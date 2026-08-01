@@ -7,9 +7,9 @@ import type {
 } from "@oxc-project/types";
 import { describe, expect, it } from "vitest";
 
-import { walkAst } from "@/helpers/ast-walker";
-import { OxcParser } from "@/parse/OxcParser";
-import { SeedExpander } from "@/slice/SeedExpander";
+import { walkAst } from "@/helpers";
+import { OxcParser } from "@/parse";
+import { SeedExpander } from "@/slice";
 import type { AbsolutePath, AstNode, OffsetRange, ParsedFile, SourceText } from "@/types";
 
 const entryFile: AbsolutePath = "/project/src/seed.ts";

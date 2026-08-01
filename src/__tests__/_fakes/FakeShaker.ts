@@ -1,4 +1,4 @@
-import type { IShaker } from "@/shake/Shaker";
+import type { IShaker } from "@/shake";
 import type { FunctionNode, OffsetRange, SourceText } from "@/types";
 
 /**

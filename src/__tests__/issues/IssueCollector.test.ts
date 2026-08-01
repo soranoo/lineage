@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { IssueCollector } from "@/issues/IssueCollector";
+import { IssueCollector } from "@/issues";
 import type {
   AbsolutePath,
   IssueKind,

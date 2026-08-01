@@ -1,4 +1,5 @@
 // @ts-nocheck
+// oxlint-disable-next-line no-unused-vars
 const pickFirst = (a: number, b: number): number => {
   return arguments[0] + arguments[1];
 };

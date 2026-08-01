@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { OxcParser } from "@/parse/OxcParser";
+import { OxcParser } from "@/parse";
 import type { AbsolutePath, SourceText } from "@/types";
 import { ParseError } from "@/types";
 

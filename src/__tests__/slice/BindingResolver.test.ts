@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { walkAst } from "@/helpers/ast-walker";
-import { OxcParser } from "@/parse/OxcParser";
-import { BindingResolver } from "@/slice/BindingResolver";
+import { walkAst } from "@/helpers";
+import { OxcParser } from "@/parse";
+import { BindingResolver } from "@/slice";
 import type { AbsolutePath, AstNode, ParsedFile, SourceText } from "@/types";
 
 const entryFile: AbsolutePath = "/project/src/entry.ts";

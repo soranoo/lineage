@@ -1,4 +1,4 @@
-import type { IParser } from "@/parse/Parser";
+import type { IParser } from "@/parse";
 import type { AbsolutePath, ParsedFile, SourceText } from "@/types";
 import { ParseError } from "@/types";
 

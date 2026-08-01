@@ -1,8 +1,8 @@
 import MagicString from "magic-string";
 import { describe, expect, it } from "vitest";
 
-import { MagicStringEditor } from "@/edit/MagicStringEditor";
-import type { CharOffset, OffsetRange, OutputMode, SourceText } from "@/types";
+import { MagicStringEditor } from "@/edit";
+import type { CharOffset, OffsetRange, SourceText } from "@/types";
 
 /**
  * Build an OffsetRange with the provided bounds.

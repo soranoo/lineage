@@ -2,9 +2,8 @@ import type { CallExpression } from "@oxc-project/types";
 import { assertNever } from "assert-never";
 import { visitorKeys } from "oxc-parser";
 
-import { isAstNode, walkAst } from "@/helpers/ast-walker";
-import { BindingResolver } from "@/slice/BindingResolver";
-import { SeedExpander } from "@/slice/SeedExpander";
+import { isAstNode, walkAst } from "@/helpers";
+import { BindingResolver, SeedExpander } from "@/slice";
 import type {
   AbsolutePath,
   AstNode,

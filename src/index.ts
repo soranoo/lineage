@@ -1,4 +1,4 @@
 export { DependencyTracker } from "@/tracker/DependencyTracker";
-export { offsetFromLineCol } from "@/helpers/offset-from-line-col";
+export { offsetFromLineCol } from "@/helpers";
 
 export type * from "@/types";
