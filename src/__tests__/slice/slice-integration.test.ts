@@ -3,19 +3,11 @@ import { describe, expect, it } from "vitest";
 import { FakeParser } from "@/__tests__/_fakes/FakeParser";
 import { FakeResolver } from "@/__tests__/_fakes/FakeResolver";
 import { FakeShaker } from "@/__tests__/_fakes/FakeShaker";
-import { isAstNode, walkAst } from "@/helpers";
+import { buildNodeId, buildParsedFiles, findNode, hasEdge, toRange } from "@/__tests__/utils";
+import { isAstNode } from "@/helpers";
 import { IssueCollector } from "@/issues";
-import { OxcParser } from "@/parse";
 import { BackwardSlicer } from "@/slice";
-import type {
-  AbsolutePath,
-  AstNode,
-  DependencyEdge,
-  OffsetRange,
-  ParsedFile,
-  ResolveResult,
-  SourceText,
-} from "@/types";
+import type { AbsolutePath, AstNode, ParsedFile, ResolveResult, SourceText } from "@/types";
 
 type ReturnStatementNode = AstNode & { type: "ReturnStatement" };
 type FunctionDeclarationNode = AstNode & {
@@ -24,95 +16,6 @@ type FunctionDeclarationNode = AstNode & {
   params: AstNode[];
 };
 type VariableDeclarationNode = AstNode & { type: "VariableDeclaration" };
-
-/**
- * Source entry for multi-file parsing.
- */
-type SourceEntry = {
-  /** Absolute file path for the entry. */
-  file: AbsolutePath;
-  /** Source text for the entry. */
-  source: SourceText;
-};
-
-/**
- * Build parsed files from source entries.
- *
- * @param entries Source entries to parse.
- * @returns Map of parsed files keyed by absolute path.
- */
-const buildParsedFiles = (entries: SourceEntry[]): Map<AbsolutePath, ParsedFile> => {
-  const parser = new OxcParser();
-  const parsed = new Map<AbsolutePath, ParsedFile>();
-
-  for (const entry of entries) {
-    parsed.set(entry.file, parser.parse(entry.file, entry.source));
-  }
-
-  return parsed;
-};
-
-/**
- * Find the first AST node matching the predicate.
- *
- * @param root Root AST node.
- * @param predicate Predicate narrowing the node.
- * @param message Error message when not found.
- * @returns Matching AST node.
- */
-const findNode = <T extends AstNode>(
-  root: AstNode,
-  predicate: (node: AstNode) => node is T,
-  message: string,
-): T => {
-  let found: T | null = null;
-
-  walkAst(root, (node) => {
-    if (!found && predicate(node)) {
-      found = node;
-    }
-  });
-
-  if (!found) {
-    throw new Error(message);
-  }
-
-  return found;
-};
-
-/**
- * Convert an AST node to an offset range.
- *
- * @param node AST node to convert.
- * @returns Offset range for the node.
- */
-const toRange = (node: AstNode): OffsetRange => ({ start: node.start, end: node.end });
-
-/**
- * Build a node ID from file and range.
- *
- * @param file Absolute file path.
- * @param range Offset range.
- * @returns Node ID string.
- */
-const buildNodeId = (file: AbsolutePath, range: OffsetRange): SourceText =>
-  `${file}:${range.start}:${range.end}`;
-
-/**
- * Test whether an edge exists in the list.
- *
- * @param edges Edge list to search.
- * @param fromId Source node ID.
- * @param toId Target node ID.
- * @param kind Edge kind to match.
- * @returns True when a matching edge exists.
- */
-const hasEdge = (
-  edges: DependencyEdge[],
-  fromId: SourceText,
-  toId: SourceText,
-  kind: SourceText,
-): boolean => edges.some((edge) => edge.from === fromId && edge.to === toId && edge.kind === kind);
 
 /**
  * Check whether a return statement returns a call to the given callee.

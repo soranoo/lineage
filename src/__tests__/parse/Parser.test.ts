@@ -1,34 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import { buildParsedFile } from "@/__tests__/utils";
 import type { IParser } from "@/parse";
-import type { AbsolutePath, OxcAst, ParsedFile, SourceText } from "@/types";
-
-/**
- * Build a minimal Program AST for test usage.
- *
- * @returns Minimal Program AST instance.
- */
-const buildAst = (): OxcAst => ({
-  type: "Program",
-  body: [],
-  sourceType: "module",
-  hashbang: null,
-  start: 0,
-  end: 0,
-});
-
-/**
- * Build a ParsedFile for the provided path and source.
- *
- * @param absolutePath Absolute path for the parsed file.
- * @param source Source text to attach to the parsed file.
- * @returns ParsedFile instance for tests.
- */
-const buildParsedFile = (absolutePath: AbsolutePath, source: SourceText): ParsedFile => ({
-  absolutePath,
-  ast: buildAst(),
-  source,
-});
+import type { AbsolutePath, ParsedFile, SourceText } from "@/types";
 
 /**
  * Minimal parser implementation used for interface checks.

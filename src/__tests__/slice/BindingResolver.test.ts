@@ -1,50 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import { findNode, parseSource } from "@/__tests__/utils";
 import { walkAst } from "@/helpers";
-import { OxcParser } from "@/parse";
 import { BindingResolver } from "@/slice";
-import type { AbsolutePath, AstNode, ParsedFile, SourceText } from "@/types";
-
-const entryFile: AbsolutePath = "/project/src/entry.ts";
-
-/**
- * Parse source text into a ParsedFile.
- *
- * @param source Source text to parse.
- * @returns ParsedFile for the provided source.
- */
-const parseSource = (source: SourceText): ParsedFile => {
-  const parser = new OxcParser();
-  return parser.parse(entryFile, source);
-};
-
-/**
- * Find the first AST node matching the predicate.
- *
- * @param root Root AST node.
- * @param predicate Predicate narrowing the node.
- * @param message Error message when not found.
- * @returns Matching AST node.
- */
-const findNode = (
-  root: AstNode,
-  predicate: (node: AstNode) => boolean,
-  message: string,
-): AstNode => {
-  let found: AstNode | null = null;
-
-  walkAst(root, (node) => {
-    if (!found && predicate(node)) {
-      found = node;
-    }
-  });
-
-  if (!found) {
-    throw new Error(message);
-  }
-
-  return found;
-};
+import type { AstNode, SourceText } from "@/types";
 
 /**
  * Determine whether an identifier is a reference rather than a binding.
