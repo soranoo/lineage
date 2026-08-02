@@ -2,8 +2,8 @@ import { assertNever } from "assert-never";
 import { ResolverFactory } from "oxc-resolver";
 import type { ResolveResult as OxcResolveResult } from "oxc-resolver";
 
-import { IgnoreFilter } from "@/resolve";
-import type { IResolver } from "@/resolve";
+import { IgnoreFilter } from "@/resolve/IgnoreFilter";
+import type { IResolver } from "@/resolve/Resolver";
 import type { AbsolutePath, OxcResolverOptions, ResolveResult, SourceText } from "@/types";
 
 /**
