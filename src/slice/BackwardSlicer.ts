@@ -3,7 +3,8 @@ import { assertNever } from "assert-never";
 import { visitorKeys } from "oxc-parser";
 
 import { isAstNode, walkAst } from "@/helpers";
-import { BindingResolver, SeedExpander } from "@/slice";
+import { BindingResolver } from "@/slice/BindingResolver";
+import { SeedExpander } from "@/slice/SeedExpander";
 import type {
   AbsolutePath,
   AstNode,
