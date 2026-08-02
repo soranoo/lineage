@@ -15,8 +15,6 @@ jobs:
           bun-version: 1.3.14
       - run: bun install --frozen-lockfile
       - run: bun test
-      - run: bun typecheck
-      - run: bun lint
   fmt-lint:
     runs-on: ubuntu-latest
     steps:
@@ -26,6 +24,7 @@ jobs:
         with:
           bun-version: 1.3.14
       - run: bun install --frozen-lockfile
+      - run: bun typecheck
       - run: bun run fmt:check
       - run: bun run lint
   release:
