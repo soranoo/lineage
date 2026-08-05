@@ -709,6 +709,9 @@ const emitIssue = (
     "indirect-call": "Indirect call detected.",
     "prototype-mutation": "Prototype mutation detected.",
     "this-call": "this-call detected.",
+    "dynamic-require": "Dynamic require detected.",
+    "usage-cap-reached": "Usage node cap reached.",
+    "unresolved-call-target": "Unresolved call target.",
   };
 
   const resolutions: Record<IssueKind, IssueResolution> = {
@@ -722,6 +725,9 @@ const emitIssue = (
     "indirect-call": "included",
     "prototype-mutation": "flagged-only",
     "this-call": "included",
+    "dynamic-require": "included",
+    "usage-cap-reached": "flagged-only",
+    "unresolved-call-target": "leaf",
   };
 
   collector.add({

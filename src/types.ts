@@ -53,6 +53,18 @@ export type SourceText = string;
  */
 export type NodeLabel = string;
 
+/** A module specifier accepted by a resolver or module boundary plugin. */
+export type ModuleSpecifier = string;
+
+/** A stable name used to identify a module-resolution plugin. */
+export type ModuleResolutionPluginName = string;
+
+/** A statically known primitive literal passed to a module boundary plugin. */
+export type LiteralValue = string | number | boolean;
+
+/** Maximum number of usage nodes a forward traversal may produce. */
+export type UsageNodeLimit = number;
+
 /**
  * Human-readable issue message for a tracker issue.
  */
@@ -149,6 +161,29 @@ export type TrackerConfig = {
    * Virtual keys must start with `/`.
    */
   virtualFiles?: Record<AbsolutePath, SourceText>;
+  /** Plugins that can resolve non-standard module call patterns. */
+  moduleResolutionPlugins?: ModuleResolutionPlugin[];
+};
+
+/**
+ * Caller-supplied resolution logic for calls whose module target is not a
+ * plain string import or require specifier.
+ */
+export type ModuleResolutionPlugin = {
+  /** Name used in issue messages and diagnostics. */
+  name: ModuleResolutionPluginName;
+  /**
+   * Resolves a recognized call into a normal module specifier, or returns
+   * null when this plugin does not recognize the call.
+   */
+  tryResolve: (call: {
+    /** Source text of the callee expression. */
+    calleeText: SourceText;
+    /** Statically known literal arguments. */
+    args: readonly LiteralValue[];
+    /** Absolute path of the file containing the call. */
+    file: AbsolutePath;
+  }) => { specifier: ModuleSpecifier } | null;
 };
 
 /**
@@ -197,6 +232,122 @@ export type TrackResult = {
   /** Issues discovered during slicing. */
   issues: TrackerIssue[];
 };
+
+/** Configuration for forward usage tracking and its project-wide index. */
+export type UsageTrackerConfig = TrackerConfig & {
+  /** Root directory recursively scanned for project files. */
+  projectRoot?: AbsolutePath;
+  /** Explicit allow-list of files to index instead of scanning a root. */
+  projectFiles?: AbsolutePath[];
+  /** Safety cap for import-graph usage traversal. */
+  maxUsageNodes?: UsageNodeLimit;
+};
+
+/** Input describing the declaration to track forward from. */
+export type UsageRequest = {
+  /** Absolute path to the file containing the declaration. */
+  entryFile: AbsolutePath;
+  /** Offset range of the declaration to track. */
+  startPoint: OffsetRange;
+  /** Optional sliced output configuration. */
+  output?: TrackOutputConfig;
+};
+
+/** Output returned from a forward usage-tracking request. */
+export type UsageResult = {
+  /** Sliced source per contributing file. */
+  files: Map<AbsolutePath, SlicedFile>;
+  /** Flat list of usage nodes across all files. */
+  nodes: UsageNode[];
+  /** Directed usage edges between nodes. */
+  edges: UsageEdge[];
+  /** Issues discovered while finding usages. */
+  issues: TrackerIssue[];
+};
+
+/** A node in the forward usage graph. */
+export type UsageNode = {
+  /** Stable unique node identifier. */
+  id: NodeId;
+  /** Absolute path containing the usage. */
+  file: AbsolutePath;
+  /** Character range of the usage node. */
+  range: OffsetRange;
+  /** Human-readable source label. */
+  label: NodeLabel;
+  /** Classification of the usage. */
+  kind: UsageKind;
+  /** Continuation details for an untraced usage. */
+  continuation?: UsageContinuation;
+};
+
+/** Classification of a forward usage node. */
+export type UsageKind =
+  /** The declaration marked as the usage start point. */
+  | "start-point"
+  /** A direct read of the tracked binding. */
+  | "read-reference"
+  /** A reassignment of the tracked binding. */
+  | "write-reference"
+  /** The tracked binding is exported from its file. */
+  | "export-boundary"
+  /** An importer's local alias for an exported tracked binding. */
+  | "import-usage"
+  /** A terminal usage whose next location is not automatically followed. */
+  | "untraced-continuation";
+
+/** Reason a usage continues without automatic transitive tracking. */
+export type UntracedContinuationReason =
+  /** A value is assigned to a new or existing binding. */
+  | "reassignment"
+  /** A value is unpacked through a destructuring pattern. */
+  | "destructure"
+  /** A value is passed as an argument. */
+  | "call-argument"
+  /** A value is returned from a function. */
+  | "return-value"
+  /** A value is written to an object property. */
+  | "property-write"
+  /** A value is spread into another object or array. */
+  | "spread"
+  /** A tracked function or callable value is invoked. */
+  | "invoked";
+
+/** Details about where a terminal usage may continue. */
+export type UsageContinuation = {
+  /** Classification of the continuation. */
+  reason: UntracedContinuationReason;
+  /** Whether the destination cannot be determined statically. */
+  opaque: boolean;
+  /** Best-effort destination for a non-opaque continuation. */
+  continuesAt?: {
+    /** Absolute path containing the destination. */
+    file: AbsolutePath;
+    /** Range of the destination declaration. */
+    range: OffsetRange;
+    /** Human-readable destination label. */
+    label: NodeLabel;
+  };
+};
+
+/** Directed edge between forward usage nodes. */
+export type UsageEdge = {
+  /** Source usage node identifier. */
+  from: NodeId;
+  /** Target usage node identifier. */
+  to: NodeId;
+  /** Classification of the usage relationship. */
+  kind: UsageEdgeKind;
+};
+
+/** Classification of a forward usage edge. */
+export type UsageEdgeKind =
+  /** A usage reads or writes the tracked value. */
+  | "read"
+  /** An importer uses an exported tracked value. */
+  | "import"
+  /** A value continues toward another known location. */
+  | "continuation";
 
 /**
  * Slice result produced by the backward slicer before assembly.
@@ -356,7 +507,13 @@ export type IssueKind =
   /** `Foo.prototype.x =` — may affect instances. */
   | "prototype-mutation"
   /** `this.method()` — receiver unknown statically. */
-  | "this-call";
+  | "this-call"
+  /** `require(expr)` — module target unknown statically. */
+  | "dynamic-require"
+  /** Forward traversal reached its configured safety cap. */
+  | "usage-cap-reached"
+  /** A call target could not be resolved by normal or plugin logic. */
+  | "unresolved-call-target";
 
 /**
  * Discriminated union describing the outcome of resolving an import specifier.
