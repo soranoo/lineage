@@ -48,6 +48,41 @@ export type IgnorePattern = string | RegExp;
  */
 export type SourceText = string;
 
+/** A name exported by an ECMAScript module. */
+export type ExportedName = string;
+
+/** A local binding name used by an importing module. */
+export type LocalAlias = string;
+
+/** The syntax used to re-export a module binding. */
+export type ReExportKind = "named" | "default" | "namespace" | "export-all";
+
+/** A direct import entry in the project-wide reverse index. */
+export type ImporterEntry = {
+  /** The entry's direct-import discriminator. */
+  kind: "import";
+  /** Absolute path of the importing file. */
+  importerFile: AbsolutePath;
+  /** Exported name requested from the source file. */
+  exportedName: ExportedName;
+  /** Local binding introduced in the importing file. */
+  localAlias: LocalAlias;
+};
+
+/** A direct re-export edge in the project-wide reverse index. */
+export type ReExportEntry = {
+  /** Re-export syntax discriminator. */
+  kind: ReExportKind;
+  /** Absolute path of the file exposing the re-export. */
+  reExporterFile: AbsolutePath;
+  /** Absolute path of the ultimate source named by this edge. */
+  sourceFile: AbsolutePath;
+  /** Name requested from the source file, or `*` for export-all. */
+  importedName: ExportedName;
+  /** Name exposed by the re-exporting file, or `*` for export-all. */
+  exportedName: ExportedName;
+};
+
 /**
  * Human-readable label extracted from source for a dependency node.
  */
@@ -241,6 +276,16 @@ export type UsageTrackerConfig = TrackerConfig & {
   projectFiles?: AbsolutePath[];
   /** Safety cap for import-graph usage traversal. */
   maxUsageNodes?: UsageNodeLimit;
+};
+
+/** Inputs used to enumerate files for a project index. */
+export type ProjectScanConfig = {
+  /** Root directory recursively scanned for source files. */
+  projectRoot?: AbsolutePath;
+  /** Explicit files to include instead of discovering from disk. */
+  projectFiles?: AbsolutePath[];
+  /** In-memory files included without disk access. */
+  virtualFiles?: Record<AbsolutePath, SourceText>;
 };
 
 /** Input describing the declaration to track forward from. */
