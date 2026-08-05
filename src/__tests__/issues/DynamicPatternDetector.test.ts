@@ -68,6 +68,12 @@ describe("DynamicPatternDetector", () => {
     expectSingleIssue(issues, "dynamic-import", "included");
   });
 
+  it("detects dynamic requires", () => {
+    const issues = detectIssues("const mod = require(moduleName);");
+
+    expectSingleIssue(issues, "dynamic-require", "included");
+  });
+
   it("detects arguments object usage", () => {
     const issues = detectIssues("function f() { return arguments; }");
 

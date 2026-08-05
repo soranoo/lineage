@@ -99,6 +99,36 @@ describe("ProjectIndexer", () => {
     ]);
   });
 
+  it("indexes CommonJS destructured imports and namespace requires", () => {
+    const virtualFiles: Record<AbsolutePath, SourceText> = {
+      "/virtual/source.ts": "module.exports = { value, other }; const value = 1; const other = 2;",
+      "/virtual/consumer.ts":
+        "const { value: alias } = require('./source'); const namespace = require('./source');",
+    };
+    const parser = new OxcParser();
+    const ignoreFilter = new IgnoreFilter([]);
+    const resolver = new VirtualAwareResolver(
+      virtualFiles,
+      ignoreFilter,
+      new OxcResolver(ignoreFilter),
+    );
+    const indexer = new ProjectIndexer(parser, resolver, new ProjectFileScanner());
+
+    const graph = indexer.index({ virtualFiles });
+    const importers = graph.findImporters("/virtual/source.ts", "value");
+
+    expect(importers).toEqual([
+      expect.objectContaining({
+        importerFile: "/virtual/consumer.ts",
+        localAlias: "alias",
+      }),
+      expect.objectContaining({
+        importerFile: "/virtual/consumer.ts",
+        localAlias: "namespace",
+      }),
+    ]);
+  });
+
   it("reuses parser cache and returns an equivalent graph on repeated indexing", () => {
     const { indexer, parser } = createIndexer();
 

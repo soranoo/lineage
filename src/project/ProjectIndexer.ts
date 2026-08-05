@@ -1,13 +1,8 @@
 import { readFileSync } from "node:fs";
 
-import type {
-  ExportNamedDeclaration,
-  ExportSpecifier,
-  ImportDeclarationSpecifier,
-  ModuleExportName,
-} from "@oxc-project/types";
 import { assertNever } from "assert-never";
 
+import { collectExports, collectImports, collectSpecifiers } from "@/helpers/module-boundary";
 import type { IParser } from "@/parse";
 import { ImportGraph } from "@/project/ImportGraph";
 import type { IResolver } from "@/resolve";
@@ -15,12 +10,11 @@ import { IgnoreFilter } from "@/resolve/IgnoreFilter";
 import type { ProjectFileScanner } from "@/resolve/ProjectFileScanner";
 import type {
   AbsolutePath,
+  ExportedBinding,
   ExportedName,
-  ImporterEntry,
-  ModuleSpecifier,
+  ModuleBoundaryImport,
   ParsedFile,
   ProjectScanConfig,
-  ReExportKind,
   SourceText,
   UsageTrackerConfig,
 } from "@/types";
@@ -73,11 +67,18 @@ export class ProjectIndexer {
 
     const graph = new ImportGraph();
     const ignoreFilter = new IgnoreFilter(config.ignorePatterns ?? []);
+    const parsedFiles = new Map<AbsolutePath, ParsedFile>();
+    const exportsByFile = new Map<AbsolutePath, ExportedBinding[]>();
 
     for (const filePath of files) {
       const parsedFile = this.parseFile(filePath, config.virtualFiles);
+      parsedFiles.set(filePath, parsedFile);
+      exportsByFile.set(filePath, collectExports(parsedFile.ast));
+    }
+
+    for (const [filePath, parsedFile] of parsedFiles) {
       const visible = ignoreFilter.match(filePath) === null;
-      this.indexModule(parsedFile, visible, graph);
+      this.indexModule(parsedFile, visible, graph, exportsByFile);
     }
 
     this.graphCache.set(cacheKey, graph);
@@ -99,185 +100,100 @@ export class ProjectIndexer {
     parsedFile: ParsedFile,
     visible: boolean,
     graph: ImportGraph,
+    exportsByFile: ReadonlyMap<AbsolutePath, ExportedBinding[]>,
   ): void => {
-    for (const statement of parsedFile.ast.body) {
-      switch (statement.type) {
-        case "ImportDeclaration":
-          this.indexImport(statement, parsedFile.absolutePath, visible, graph);
+    const imports = collectImports(parsedFile.ast);
+    for (const specifier of collectSpecifiers(parsedFile.ast)) {
+      const resolution = this.resolver.resolve(specifier, parsedFile.absolutePath);
+      const matchingImports = imports.filter((entry) => entry.specifier === specifier);
+
+      switch (resolution.kind) {
+        case "resolved":
+        case "ignored":
+          for (const entry of matchingImports) {
+            switch (entry.kind) {
+              case "import":
+                this.addImportEntries(
+                  parsedFile.absolutePath,
+                  entry,
+                  resolution.absolutePath,
+                  visible,
+                  graph,
+                  exportsByFile,
+                );
+                break;
+              case "re-export":
+                this.addReExportEntry(
+                  parsedFile.absolutePath,
+                  entry,
+                  resolution.absolutePath,
+                  visible,
+                  graph,
+                );
+                break;
+              default:
+                assertNever(entry.kind);
+            }
+          }
           break;
-        case "ExportNamedDeclaration":
-          this.indexNamedExport(statement, parsedFile.absolutePath, visible, graph);
-          break;
-        case "ExportAllDeclaration":
-          this.indexExportAll(statement, parsedFile.absolutePath, visible, graph);
+        case "failed":
           break;
         default:
-          break;
+          assertNever(resolution);
       }
     }
   };
 
-  /** Index each local binding introduced by an import declaration. */
-  private readonly indexImport = (
-    statement: Extract<ParsedFile["ast"]["body"][number], { type: "ImportDeclaration" }>,
+  /** Index an ordinary import, expanding known namespace exports. */
+  private readonly addImportEntries = (
     importerFile: AbsolutePath,
+    entry: ModuleBoundaryImport,
+    sourceFile: AbsolutePath,
     visible: boolean,
     graph: ImportGraph,
+    exportsByFile: ReadonlyMap<AbsolutePath, ExportedBinding[]>,
   ): void => {
-    for (const specifier of statement.specifiers) {
-      const importedName = this.importedName(specifier);
-      this.addResolvedImport(
-        statement.source.value,
-        importerFile,
-        importedName,
-        specifier.local.name,
-        visible,
-        graph,
-      );
+    const exportedNames =
+      entry.importedName === "*"
+        ? this.namespaceExportNames(sourceFile, exportsByFile)
+        : [entry.importedName];
+
+    for (const exportedName of exportedNames) {
+      graph.addImport(importerFile, exportedName, sourceFile, entry.localAlias, visible);
     }
   };
 
-  /** Index named re-exports that point at another module. */
-  private readonly indexNamedExport = (
-    statement: ExportNamedDeclaration,
+  /** Index one re-export that points at another module. */
+  private readonly addReExportEntry = (
     reExporterFile: AbsolutePath,
+    entry: ModuleBoundaryImport,
+    sourceFile: AbsolutePath,
     visible: boolean,
     graph: ImportGraph,
   ): void => {
-    if (statement.source === null) {
+    if (entry.exportedName === undefined || entry.reExportKind === undefined) {
       return;
     }
 
-    for (const specifier of statement.specifiers) {
-      const importedName = this.moduleExportName(specifier.local);
-      const exportedName = this.moduleExportName(specifier.exported);
-      const kind: ReExportKind =
-        importedName === "default" || exportedName === "default" ? "default" : "named";
-      this.addResolvedReExport(
-        statement.source.value,
-        reExporterFile,
-        importedName,
-        exportedName,
-        kind,
-        visible,
-        graph,
-      );
-    }
-  };
-
-  /** Index plain and namespace export-star declarations. */
-  private readonly indexExportAll = (
-    statement: Extract<ParsedFile["ast"]["body"][number], { type: "ExportAllDeclaration" }>,
-    reExporterFile: AbsolutePath,
-    visible: boolean,
-    graph: ImportGraph,
-  ): void => {
-    const exportedName =
-      statement.exported === null ? "*" : this.moduleExportName(statement.exported);
-    const kind: ReExportKind = statement.exported === null ? "export-all" : "namespace";
-    this.addResolvedReExport(
-      statement.source.value,
+    graph.addReExport(
       reExporterFile,
-      "*",
-      exportedName,
-      kind,
+      sourceFile,
+      entry.importedName,
+      entry.exportedName,
+      entry.reExportKind,
       visible,
-      graph,
     );
   };
 
-  /** Resolve and add an ordinary import edge. */
-  private readonly addResolvedImport = (
-    specifier: ModuleSpecifier,
-    importerFile: AbsolutePath,
-    exportedName: ExportedName,
-    localAlias: SourceText,
-    visible: boolean,
-    graph: ImportGraph,
-  ): void => {
-    const resolution = this.resolver.resolve(specifier, importerFile);
-
-    switch (resolution.kind) {
-      case "resolved":
-        graph.addImport(importerFile, exportedName, resolution.absolutePath, localAlias, visible);
-        break;
-      case "ignored":
-        graph.addImport(importerFile, exportedName, resolution.absolutePath, localAlias, visible);
-        break;
-      case "failed":
-        break;
-      default:
-        assertNever(resolution);
-    }
-  };
-
-  /** Resolve and add a re-export edge. */
-  private readonly addResolvedReExport = (
-    specifier: ModuleSpecifier,
-    reExporterFile: AbsolutePath,
-    importedName: ExportedName,
-    exportedName: ExportedName,
-    kind: ReExportKind,
-    visible: boolean,
-    graph: ImportGraph,
-  ): void => {
-    const resolution = this.resolver.resolve(specifier, reExporterFile);
-
-    switch (resolution.kind) {
-      case "resolved":
-        graph.addReExport(
-          reExporterFile,
-          resolution.absolutePath,
-          importedName,
-          exportedName,
-          kind,
-          visible,
-        );
-        break;
-      case "ignored":
-        graph.addReExport(
-          reExporterFile,
-          resolution.absolutePath,
-          importedName,
-          exportedName,
-          kind,
-          visible,
-        );
-        break;
-      case "failed":
-        break;
-      default:
-        assertNever(resolution);
-    }
-  };
-
-  /** Return the exported name requested by one import specifier. */
-  private readonly importedName = (specifier: ImportDeclarationSpecifier): ExportedName => {
-    switch (specifier.type) {
-      case "ImportSpecifier":
-        return this.moduleExportName(specifier.imported);
-      case "ImportDefaultSpecifier":
-        return "default";
-      case "ImportNamespaceSpecifier":
-        return "*";
-      default:
-        return assertNever(specifier);
-    }
-  };
-
-  /** Convert an OXC module export name into its string key. */
-  private readonly moduleExportName = (name: ModuleExportName): ExportedName => {
-    switch (name.type) {
-      case "Identifier":
-        return name.name;
-      case "Literal":
-        if (typeof name.value === "string") {
-          return name.value;
-        }
-        throw new TypeError("Module export name literal must be a string.");
-      default:
-        return assertNever(name);
-    }
+  /** Resolve known names for a namespace import, or preserve its wildcard. */
+  private readonly namespaceExportNames = (
+    sourceFile: AbsolutePath,
+    exportsByFile: ReadonlyMap<AbsolutePath, ExportedBinding[]>,
+  ): ExportedName[] => {
+    const names = (exportsByFile.get(sourceFile) ?? [])
+      .filter((binding) => binding.source === undefined && binding.exportedName !== "*")
+      .map((binding) => binding.exportedName);
+    return names.length > 0 ? [...new Set(names)] : ["*"];
   };
 
   /** Build a stable key from the scanned paths and virtual source contents. */

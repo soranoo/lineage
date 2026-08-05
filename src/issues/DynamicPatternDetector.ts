@@ -106,6 +106,10 @@ export class DynamicPatternDetector {
             this.emitIssue("this-call", current, file);
           }
 
+          if (this.isDynamicRequire(current)) {
+            this.emitIssue("dynamic-require", current, file);
+          }
+
           if (this.isIndirectCall(current, indirectBindings)) {
             this.emitIssue("indirect-call", current, file);
           }
@@ -179,6 +183,23 @@ export class DynamicPatternDetector {
    */
   private readonly isThisCall = (node: CallExpression): boolean =>
     node.callee.type === "MemberExpression" && node.callee.object.type === "ThisExpression";
+
+  /**
+   * Check whether the call is a require with a non-literal module target.
+   *
+   * @param node Call expression to inspect.
+   * @returns True when require cannot be resolved from a string literal.
+   */
+  private readonly isDynamicRequire = (node: CallExpression): boolean => {
+    if (node.callee.type !== "Identifier" || node.callee.name !== "require") {
+      return false;
+    }
+
+    const [argument] = node.arguments;
+    return (
+      argument === undefined || argument.type !== "Literal" || typeof argument.value !== "string"
+    );
+  };
 
   /**
    * Check whether the call expression is an indirect call via a bound identifier.

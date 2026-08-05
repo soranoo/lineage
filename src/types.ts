@@ -91,6 +91,35 @@ export type NodeLabel = string;
 /** A module specifier accepted by a resolver or module boundary plugin. */
 export type ModuleSpecifier = string;
 
+/** A binding exposed by an ESM or CommonJS module boundary. */
+export type ExportedBinding = {
+  /** Name visible to importers. */
+  exportedName: ExportedName;
+  /** Local binding that provides the exported value, when known. */
+  localName?: LocalAlias;
+  /** Source module for a re-exported binding. */
+  source?: ModuleSpecifier;
+};
+
+/** Kind of module boundary import discovered in a source file. */
+export type ModuleBoundaryImportKind = "import" | "re-export";
+
+/** Import or re-export metadata associated with a module specifier. */
+export type ModuleBoundaryImport = {
+  /** Whether the boundary introduces a local import or re-exports a binding. */
+  kind: ModuleBoundaryImportKind;
+  /** Module path passed to the resolver. */
+  specifier: ModuleSpecifier;
+  /** Name requested from the source module. */
+  importedName: ExportedName;
+  /** Local name introduced by an import. */
+  localAlias: LocalAlias;
+  /** Name exposed by a re-exporting module. */
+  exportedName?: ExportedName;
+  /** Re-export syntax used by this boundary. */
+  reExportKind?: ReExportKind;
+};
+
 /** A stable name used to identify a module-resolution plugin. */
 export type ModuleResolutionPluginName = string;
 

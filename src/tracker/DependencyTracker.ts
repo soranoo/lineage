@@ -5,6 +5,7 @@ import MagicString from "magic-string";
 
 import { MagicStringEditor } from "@/edit";
 import { walkAst } from "@/helpers";
+import { collectSpecifiers } from "@/helpers/module-boundary";
 import { DynamicPatternDetector, IssueCollector } from "@/issues";
 import { OxcParser } from "@/parse";
 import { IgnoreFilter, OxcResolver } from "@/resolve";
@@ -126,27 +127,7 @@ const prepopulateVirtualParsedFiles = (
  * @returns Unique list of import/re-export specifiers.
  */
 const collectModuleSpecifiers = (parsedFile: ParsedFile): SourceText[] => {
-  const specifiers = new Set<SourceText>();
-
-  for (const statement of parsedFile.ast.body) {
-    switch (statement.type) {
-      case "ImportDeclaration":
-        specifiers.add(statement.source.value);
-        break;
-      case "ExportNamedDeclaration":
-        if (statement.source !== null) {
-          specifiers.add(statement.source.value);
-        }
-        break;
-      case "ExportAllDeclaration":
-        specifiers.add(statement.source.value);
-        break;
-      default:
-        break;
-    }
-  }
-
-  return [...specifiers];
+  return collectSpecifiers(parsedFile.ast);
 };
 
 /**

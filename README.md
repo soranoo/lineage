@@ -59,6 +59,7 @@ It is recommended to have a basic understanding of the following concepts before
 - **Ignore patterns**: exclude folders or files from recursion using strings or RegExp (e.g. `generated/`, `/vendor/`); `node_modules` is always excluded implicitly
 - **Unresolved dependency reporting**: when a binding cannot be traced to a definition, Lineage keeps a placeholder leaf node in the graph instead of silently dropping it
 - **Dynamic pattern detection**: `eval`, computed properties, indirect calls, `arguments`, and other statically unresolvable patterns are detected and reported with the conservative action taken
+- **CommonJS module boundaries**: literal `require()` calls, `module.exports` and `exports.name` participate in module discovery and usage indexing alongside ESM imports and exports; dynamic requires are reported as `dynamic-require`
 
 ---
 
