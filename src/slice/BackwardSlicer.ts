@@ -806,6 +806,7 @@ export class BackwardSlicer {
    * @param entryFile Absolute entry file path.
    * @param startPoint Start-point range within the entry file.
    * @param parsedFiles Parsed file map keyed by absolute path.
+   * @param shake Whether to mark unused function statements for pruning.
    * @returns Slice result containing nodes, edges, and visited IDs.
    * @throws {StartPointNotFoundError} When the start point does not map to any node.
    */
@@ -813,6 +814,7 @@ export class BackwardSlicer {
     entryFile: AbsolutePath,
     startPoint: OffsetRange,
     parsedFiles: Map<AbsolutePath, ParsedFile>,
+    shake = true,
   ): SliceResult => {
     const entryParsed = parsedFiles.get(entryFile);
 
@@ -1050,8 +1052,10 @@ export class BackwardSlicer {
       visited.add(functionId);
 
       const isNested = findEnclosingFunction(parsedFiles.get(file)?.ast ?? fnNode, fnNode) !== null;
-      const shakenRanges = this.shaker.shake(fnNode, source);
-      addShakenNodes(fnNode, file, source, shakenRanges);
+      if (shake) {
+        const shakenRanges = this.shaker.shake(fnNode, source);
+        addShakenNodes(fnNode, file, source, shakenRanges);
+      }
 
       const returnExpressions = collectReturnExpressions(fnNode);
       const dependencies: IdentifierDependency[] = [];
@@ -1552,7 +1556,7 @@ export class BackwardSlicer {
     visited.add(startNode.id);
 
     const enclosingFunction = findEnclosingFunction(entryParsed.ast, seedNode);
-    if (enclosingFunction) {
+    if (enclosingFunction && shake) {
       const shakenRanges = this.shaker.shake(enclosingFunction, entryParsed.source);
       addShakenNodes(enclosingFunction, entryFile, entryParsed.source, shakenRanges);
     }

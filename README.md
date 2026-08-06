@@ -113,6 +113,7 @@ const tracker = new DependencyTracker();
 const result = await tracker.track({
   entryFile: SOURCE_PATH,
   startPoint: { start, end },
+  shake: true, // prune unused statements inside touched functions (default)
   output: { mode: "blank" }, // "blank" (default) | "compact"
 });
 
@@ -525,6 +526,7 @@ const result = await tracker.track(request: TrackRequest): Promise<TrackResult>
 | ------------- | ---------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------- |
 | `entryFile`   | `string`               | required  | Absolute path to the file containing the start point.                                                                                 |
 | `startPoint`  | `OffsetRange`          | required  | 0-based character offset range of the start-point node. Use `offsetFromLineCol()` to convert from line/col.                           |
+| `shake`       | `boolean`              | `true`     | When `false`, keep every statement in touched function bodies and produce no shaken nodes.                                           |
 | `output.mode` | `"blank" \| "compact"` | `"blank"` | `blank` - replaces removed code with spaces, preserving original offsets. `compact` - excises removed code, producing shorter output. |
 
 > [!IMPORTANT]\

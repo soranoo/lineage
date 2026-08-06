@@ -279,6 +279,8 @@ export type TrackRequest = {
   entryFile: AbsolutePath;
   /** Character offset range of the start-point node. */
   startPoint: OffsetRange;
+  /** Whether to prune statements that do not contribute to returned values. */
+  shake?: boolean;
   /** Optional output configuration for sliced source. */
   output?: TrackOutputConfig;
 };

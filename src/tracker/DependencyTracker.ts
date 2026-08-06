@@ -172,6 +172,19 @@ const isKeepBoundaryNode = (node: AstNode): boolean => {
 };
 
 /**
+ * Check whether an AST node is a function expression or declaration.
+ *
+ * @param node AST node to inspect.
+ * @returns True when the node represents a function.
+ */
+const isFunctionNode = (node: AstNode): boolean =>
+  node.type === "ArrowFunctionExpression" ||
+  node.type === "FunctionDeclaration" ||
+  node.type === "FunctionExpression" ||
+  node.type === "TSDeclareFunction" ||
+  node.type === "TSEmptyBodyFunctionExpression";
+
+/**
  * Select the smallest node span from a non-empty candidate list.
  *
  * @param candidates Candidate nodes.
@@ -239,6 +252,32 @@ const expandRangeToBoundary = (ast: AstNode, range: OffsetRange): OffsetRange =>
 };
 
 /**
+ * Find the smallest enclosing function's output boundary for a range.
+ *
+ * @param ast AST root to inspect.
+ * @param range Range whose function body should be preserved.
+ * @returns Enclosing function boundary, or null when the range is outside functions.
+ */
+const findEnclosingFunctionBoundary = (
+  ast: AstNode,
+  range: OffsetRange,
+): OffsetRange | null => {
+  const functions: AstNode[] = [];
+
+  walkAst(ast, (node) => {
+    if (isFunctionNode(node) && containsRange(node, range)) {
+      functions.push(node);
+    }
+  });
+
+  if (functions.length === 0) {
+    return null;
+  }
+
+  return expandRangeToBoundary(ast, selectSmallestNode(functions));
+};
+
+/**
  * Determine whether a dependency node should contribute to output keep ranges.
  *
  * @param node Dependency node to evaluate.
@@ -270,10 +309,28 @@ const shouldKeepNodeForOutput = (node: DependencyNode): boolean => {
  * @param parsedFile Parsed file of the current source file.
  * @returns Keep ranges used by the editor.
  */
-const toOutputKeepRanges = (nodes: DependencyNode[], parsedFile: ParsedFile): Set<OffsetRange> => {
-  const ranges = nodes
-    .filter((node) => node.shaken === false && shouldKeepNodeForOutput(node))
-    .map((node) => expandRangeToBoundary(parsedFile.ast, node.range));
+const toOutputKeepRanges = (
+  nodes: DependencyNode[],
+  parsedFile: ParsedFile,
+  keepEnclosingFunctions: boolean,
+): Set<OffsetRange> => {
+  const ranges: OffsetRange[] = [];
+
+  for (const node of nodes) {
+    if (node.shaken !== false || !shouldKeepNodeForOutput(node)) {
+      continue;
+    }
+
+    ranges.push(expandRangeToBoundary(parsedFile.ast, node.range));
+
+    if (keepEnclosingFunctions) {
+      const functionBoundary = findEnclosingFunctionBoundary(parsedFile.ast, node.range);
+
+      if (functionBoundary !== null) {
+        ranges.push(functionBoundary);
+      }
+    }
+  }
 
   return buildKeepRangeSet(ranges);
 };
@@ -331,9 +388,19 @@ export class DependencyTracker {
 
     const parsedFiles = await this.collectParsedFiles(request.entryFile);
     this.detectDynamicPatterns(parsedFiles);
-    const sliceResult = this.slicer.slice(request.entryFile, request.startPoint, parsedFiles);
+    const sliceResult = this.slicer.slice(
+      request.entryFile,
+      request.startPoint,
+      parsedFiles,
+      request.shake !== false,
+    );
     const mode = this.resolveOutputMode(request);
-    const files = this.buildSlicedFiles(sliceResult.nodes, parsedFiles, mode);
+    const files = this.buildSlicedFiles(
+      sliceResult.nodes,
+      parsedFiles,
+      mode,
+      request.shake === false,
+    );
 
     return {
       files,
@@ -430,6 +497,7 @@ export class DependencyTracker {
     nodes: DependencyNode[],
     parsedFiles: Map<AbsolutePath, ParsedFile>,
     mode: OutputMode,
+    keepEnclosingFunctions: boolean,
   ): Map<AbsolutePath, SlicedFile> => {
     const files = new Map<AbsolutePath, SlicedFile>();
     const nodesByFile = new Map<AbsolutePath, DependencyNode[]>();
@@ -452,7 +520,7 @@ export class DependencyTracker {
         continue;
       }
 
-      const keepRanges = toOutputKeepRanges(fileNodes, parsedFile);
+      const keepRanges = toOutputKeepRanges(fileNodes, parsedFile, keepEnclosingFunctions);
       const ms = new MagicString(parsedFile.source);
       this.editor.apply(ms, parsedFile.source, keepRanges, mode);
 
