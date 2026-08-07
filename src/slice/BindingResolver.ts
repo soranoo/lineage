@@ -1,8 +1,8 @@
 import assertNever from "assert-never";
 import { visitorKeys } from "oxc-parser";
 
-import { isAstNode } from "@/helpers";
-import type { AstNode, ParsedFile, SourceText } from "@/types";
+import { isAstNode, walkAst } from "@/helpers";
+import type { AstNode, LiteralValue, ParsedFile, SourceText } from "@/types";
 
 /**
  * Scope classification used during binding lookup.
@@ -290,9 +290,162 @@ const sortScopesBySize = (scopes: Scope[]): Scope[] =>
   });
 
 /**
+ * Convert a statically known literal into a member-property name.
+ *
+ * @param value Literal value to convert.
+ * @returns Property name representation.
+ */
+const toPropertyName = (value: LiteralValue): SourceText => String(value);
+
+/**
  * Resolves a name to a declaration node within a scope chain.
  */
 export class BindingResolver {
+  /**
+   * Resolve statically known keys for a computed member expression.
+   *
+   * @param memberNode Member expression to inspect.
+   * @param scopeNode AST node providing the lookup scope.
+   * @param parsedFile Parsed file containing the expression.
+   * @returns Unique property names known from literals, locals, or call sites.
+   */
+  readonly resolveStaticPropertyKeys = (
+    memberNode: AstNode,
+    scopeNode: AstNode,
+    parsedFile: ParsedFile,
+  ): SourceText[] => {
+    if (memberNode.type !== "MemberExpression" || !memberNode.computed) {
+      return [];
+    }
+
+    const values = this.resolveStaticValues(memberNode.property, scopeNode, parsedFile, new Set());
+    return [...new Set(values.map(toPropertyName))];
+  };
+
+  /**
+   * Resolve every statically known primitive value for an expression.
+   *
+   * @param expression Expression whose value should be inspected.
+   * @param scopeNode AST node providing the lookup scope.
+   * @param parsedFile Parsed file containing the expression.
+   * @returns Literal values known without evaluating arbitrary code.
+   */
+  private readonly resolveStaticValues = (
+    expression: AstNode,
+    scopeNode: AstNode,
+    parsedFile: ParsedFile,
+    resolving: Set<AstNode>,
+  ): LiteralValue[] => {
+    switch (expression.type) {
+      case "Literal": {
+        if (
+          typeof expression.value === "string" ||
+          typeof expression.value === "number" ||
+          typeof expression.value === "boolean"
+        ) {
+          return [expression.value];
+        }
+
+        return [];
+      }
+      case "TemplateLiteral": {
+        if (expression.expressions.length !== 0) {
+          return [];
+        }
+
+        const [quasi] = expression.quasis;
+        const cooked = quasi?.value.cooked;
+        return cooked === null || cooked === undefined ? [] : [cooked];
+      }
+      case "TSAsExpression":
+        return this.resolveStaticValues(expression.expression, scopeNode, parsedFile, resolving);
+      case "Identifier": {
+        const resolved = this.resolveWithScope(expression.name, scopeNode, parsedFile);
+
+        if (!resolved || resolving.has(resolved.node)) {
+          return [];
+        }
+
+        resolving.add(resolved.node);
+
+        try {
+          if (resolved.node.type === "VariableDeclarator" && resolved.node.init) {
+            return this.resolveStaticValues(
+              resolved.node.init,
+              resolved.scopeNode,
+              parsedFile,
+              resolving,
+            );
+          }
+
+          if (resolved.node.type === "Identifier" && isFunctionScopeNode(resolved.scopeNode)) {
+            return this.resolveParameterValues(
+              resolved.node,
+              resolved.scopeNode,
+              parsedFile,
+              resolving,
+            );
+          }
+
+          return [];
+        } finally {
+          resolving.delete(resolved.node);
+        }
+      }
+      default:
+        return [];
+    }
+  };
+
+  /**
+   * Resolve literal arguments supplied to every call of a named function.
+   *
+   * @param parameterNode Parameter whose arguments should be collected.
+   * @param functionNode Function owning the parameter.
+   * @param parsedFile Parsed file containing declarations and calls.
+   * @param resolving Active resolution set used to stop cycles.
+   * @returns Literal values supplied at matching call sites.
+   */
+  private readonly resolveParameterValues = (
+    parameterNode: AstNode,
+    functionNode: FunctionScopeNode,
+    parsedFile: ParsedFile,
+    resolving: Set<AstNode>,
+  ): LiteralValue[] => {
+    const parameterIndex = functionNode.params.findIndex((parameter) => parameter === parameterNode);
+    const functionName = functionNode.id?.type === "Identifier" ? functionNode.id.name : null;
+
+    if (parameterIndex < 0 || functionName === null) {
+      return [];
+    }
+
+    const values: LiteralValue[] = [];
+
+    walkAst(parsedFile.ast, (node) => {
+      if (node.type !== "CallExpression" || node.callee.type !== "Identifier") {
+        return;
+      }
+
+      if (node.callee.name !== functionName) {
+        return;
+      }
+
+      const resolvedCallee = this.resolveWithScope(node.callee.name, node.callee, parsedFile);
+      if (resolvedCallee?.node !== functionNode) {
+        return;
+      }
+
+      const argument = node.arguments[parameterIndex];
+      if (!argument || !isAstNode(argument)) {
+        return;
+      }
+
+      values.push(...this.resolveStaticValues(argument, functionNode, parsedFile, resolving));
+    });
+
+    return values;
+  };
+
   /**
    * Resolve `name` to its declaration node and scope kind.
    *

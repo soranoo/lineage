@@ -10,14 +10,17 @@ import type {
   IssueMessage,
   IssueResolution,
   OffsetRange,
+  ParsedFile,
   SourceText,
 } from "@/types";
+import { BindingResolver } from "@/slice/BindingResolver";
 
 /**
  * Detects dynamic patterns that require conservative handling.
  */
 export class DynamicPatternDetector {
   private readonly collector: IIssueCollector;
+  private readonly bindingResolver: BindingResolver;
 
   private readonly issueMessages: Record<IssueKind, IssueMessage> = {
     "unresolved-dependency": "Unresolved dependency.",
@@ -58,6 +61,7 @@ export class DynamicPatternDetector {
    */
   constructor(collector: IIssueCollector) {
     this.collector = collector;
+    this.bindingResolver = new BindingResolver();
   }
 
   /**
@@ -65,9 +69,11 @@ export class DynamicPatternDetector {
    *
    * @param node Root AST node to scan.
    * @param file Absolute path of the file being analyzed.
+   * @param parsedFile Parsed file used to resolve computed keys when available.
    */
-  readonly detect = (node: AstNode, file: AbsolutePath): void => {
+  readonly detect = (node: AstNode, file: AbsolutePath, parsedFile?: ParsedFile): void => {
     const indirectBindings = new Set<SourceText>();
+    const staticComputedCallees = new Set<AstNode>();
 
     walkAst(node, (current) => {
       switch (current.type) {
@@ -98,6 +104,14 @@ export class DynamicPatternDetector {
           return;
         }
         case "CallExpression": {
+          if (
+            current.callee.type === "MemberExpression" &&
+            current.callee.computed &&
+            this.hasStaticPropertyKey(current.callee, parsedFile)
+          ) {
+            staticComputedCallees.add(current.callee);
+          }
+
           if (this.isEvalCall(current)) {
             this.emitIssue("eval", current, file);
           }
@@ -116,7 +130,7 @@ export class DynamicPatternDetector {
           return;
         }
         case "MemberExpression": {
-          if (current.computed) {
+          if (current.computed && !staticComputedCallees.has(current)) {
             this.emitIssue("computed-property", current, file);
           }
           return;
@@ -139,6 +153,36 @@ export class DynamicPatternDetector {
           return;
       }
     });
+  };
+
+  /**
+   * Check whether a computed member has a statically known property key.
+   *
+   * @param node Computed member expression to inspect.
+   * @param parsedFile Parsed file used for binding resolution.
+   * @returns True when the key is known without evaluating arbitrary code.
+   */
+  private readonly hasStaticPropertyKey = (
+    node: Extract<AstNode, { type: "MemberExpression" }>,
+    parsedFile: ParsedFile | undefined,
+  ): boolean => {
+    if (node.property.type === "Literal") {
+      return (
+        typeof node.property.value === "string" ||
+        typeof node.property.value === "number" ||
+        typeof node.property.value === "boolean"
+      );
+    }
+
+    if (node.property.type === "TemplateLiteral" && node.property.expressions.length === 0) {
+      const [quasi] = node.property.quasis;
+      return quasi?.value.cooked !== null && quasi?.value.cooked !== undefined;
+    }
+
+    return (
+      parsedFile !== undefined &&
+      this.bindingResolver.resolveStaticPropertyKeys(node, node, parsedFile).length > 0
+    );
   };
 
   /**

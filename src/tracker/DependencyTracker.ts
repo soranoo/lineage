@@ -258,10 +258,7 @@ const expandRangeToBoundary = (ast: AstNode, range: OffsetRange): OffsetRange =>
  * @param range Range whose function body should be preserved.
  * @returns Enclosing function boundary, or null when the range is outside functions.
  */
-const findEnclosingFunctionBoundary = (
-  ast: AstNode,
-  range: OffsetRange,
-): OffsetRange | null => {
+const findEnclosingFunctionBoundary = (ast: AstNode, range: OffsetRange): OffsetRange | null => {
   const functions: AstNode[] = [];
 
   walkAst(ast, (node) => {
@@ -541,7 +538,7 @@ export class DependencyTracker {
    */
   private readonly detectDynamicPatterns = (parsedFiles: Map<AbsolutePath, ParsedFile>): void => {
     for (const parsedFile of parsedFiles.values()) {
-      this.dynamicPatternDetector.detect(parsedFile.ast, parsedFile.absolutePath);
+      this.dynamicPatternDetector.detect(parsedFile.ast, parsedFile.absolutePath, parsedFile);
     }
   };
 }
