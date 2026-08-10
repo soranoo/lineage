@@ -543,7 +543,9 @@ export type EdgeKind =
   /** `to` closes over `from`. */
   | "closure"
   /** `to` imports `from`. */
-  | "import";
+  | "import"
+  /** `to` is structurally placed at the origin represented by `from`. */
+  | "structural-origin";
 
 /**
  * Issue discovered during slicing.

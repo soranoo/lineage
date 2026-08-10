@@ -591,6 +591,192 @@ const findEnclosingFunction = (root: AstNode, target: AstNode): FunctionNode | n
 };
 
 /**
+ * Find the first directly traceable structural context containing a function.
+ *
+ * @param root Parsed-file AST root.
+ * @param functionNode Function whose placement should be traced.
+ * @param parsedFile Parsed file containing the function.
+ * @param bindingResolver Resolver used for call-argument parameters.
+ * @returns Structural origin node, or null when the function is standalone.
+ */
+const findStructuralOriginNode = (
+  root: AstNode,
+  functionNode: FunctionNode,
+  parsedFile: ParsedFile,
+  bindingResolver: BindingResolver,
+): AstNode | null => {
+  const parents = new Map<AstNode, AstNode | null>();
+  walkAst(root, (node, parent) => {
+    parents.set(node, parent);
+  });
+
+  let current: AstNode = functionNode;
+  let literalFallback: AstNode | null = null;
+  const visited = new Set<AstNode>();
+
+  while (!visited.has(current)) {
+    visited.add(current);
+    const parent = parents.get(current);
+
+    if (!parent) {
+      return literalFallback;
+    }
+
+    switch (parent.type) {
+      case "Property": {
+        if (parent.value !== current) {
+          return literalFallback;
+        }
+        current = parent;
+        continue;
+      }
+      case "ObjectExpression":
+      case "ArrayExpression": {
+        literalFallback = parent;
+        current = parent;
+        continue;
+      }
+      case "VariableDeclarator": {
+        return parent.init === current ? parent : literalFallback;
+      }
+      case "AssignmentExpression": {
+        return parent.right === current ? parent.left : literalFallback;
+      }
+      case "ExportDefaultDeclaration":
+      case "ExportNamedDeclaration": {
+        return parent;
+      }
+      case "MethodDefinition": {
+        return parent.value === current ? parent : literalFallback;
+      }
+      case "TSAsExpression":
+      case "TSSatisfiesExpression": {
+        current = parent;
+        continue;
+      }
+      case "CallExpression": {
+        const argumentIndex = parent.arguments.findIndex(
+          (argument) => isAstNode(argument) && argument === current,
+        );
+
+        if (argumentIndex >= 0 && parent.callee.type === "Identifier") {
+          const resolved = bindingResolver.resolveWithScope(
+            parent.callee.name,
+            parent.callee,
+            parsedFile,
+          );
+
+          if (resolved && isFunctionNode(resolved.node)) {
+            const parameter = resolved.node.params[argumentIndex];
+            if (parameter && parameter.type === "Identifier") {
+              return parameter;
+            }
+          }
+        }
+
+        return literalFallback;
+      }
+      default:
+        break;
+    }
+
+    return literalFallback;
+  }
+
+  return literalFallback;
+};
+
+/**
+ * Check whether a function has a discoverable direct call site.
+ *
+ * @param root Parsed-file AST root.
+ * @param functionNode Function whose calls should be checked.
+ * @param parsedFile Parsed file containing the function.
+ * @param bindingResolver Resolver used to validate call bindings.
+ * @returns True when a direct call to the function can be resolved.
+ */
+const hasDiscoverableParameterCallSite = (
+  root: AstNode,
+  functionNode: FunctionNode,
+  parsedFile: ParsedFile,
+  bindingResolver: BindingResolver,
+): boolean => {
+  let functionName: SourceText | null =
+    functionNode.id?.type === "Identifier" ? functionNode.id.name : null;
+
+  if (functionName === null) {
+    walkAst(root, (node) => {
+      if (functionName !== null || node.type !== "VariableDeclarator") {
+        return;
+      }
+
+      if (node.id.type === "Identifier" && node.init === functionNode) {
+        functionName = node.id.name;
+      }
+    });
+  }
+
+  if (functionName === null) {
+    return false;
+  }
+
+  let found = false;
+  walkAst(root, (node) => {
+    if (found || node.type !== "CallExpression" || node.callee.type !== "Identifier") {
+      return;
+    }
+
+    if (node.callee.name !== functionName) {
+      return;
+    }
+
+    const resolved = bindingResolver.resolveWithScope(node.callee.name, node.callee, parsedFile);
+    found =
+      resolved?.node === functionNode ||
+      (resolved?.node.type === "VariableDeclarator" && resolved.node.init === functionNode);
+  });
+
+  return found;
+};
+
+/**
+ * Classify a structural-origin node for the dependency graph.
+ *
+ * @param origin Structural origin AST node.
+ * @param parsedFile Parsed file containing the origin.
+ * @param bindingResolver Resolver used to classify identifier origins.
+ * @returns Dependency node kind for the origin.
+ */
+const classifyStructuralOrigin = (
+  origin: AstNode,
+  parsedFile: ParsedFile,
+  bindingResolver: BindingResolver,
+): DependencyKind => {
+  if (origin.type === "MethodDefinition" || origin.type === "ExportDefaultDeclaration") {
+    return "function";
+  }
+
+  if (origin.type === "Identifier") {
+    const resolved = bindingResolver.resolveWithScope(origin.name, origin, parsedFile);
+
+    if (resolved?.node === origin) {
+      return "parameter";
+    }
+
+    if (resolved?.node.type === "VariableDeclarator") {
+      return resolved.scopeKind === "program" ? "global" : "variable";
+    }
+  }
+
+  if (origin.type === "VariableDeclarator" && origin.id.type === "Identifier") {
+    const resolved = bindingResolver.resolveWithScope(origin.id.name, origin, parsedFile);
+    return resolved?.scopeKind === "program" ? "global" : "variable";
+  }
+
+  return "variable";
+};
+
+/**
  * Find an exported binding in a parsed file.
  *
  * @param parsedFile Parsed file to inspect.
@@ -1382,8 +1568,41 @@ export class BackwardSlicer {
       );
       addEdge(ownerNodeId, parameterNode.id, resolvedEdgeKind);
 
-      if (!visited.has(parameterNode.id)) {
+      const isNewParameter = !visited.has(parameterNode.id);
+      if (isNewParameter) {
         visited.add(parameterNode.id);
+      }
+
+      if (isNewParameter && isFunctionNode(resolvedScopeNode)) {
+        const parsedFile = parsedFiles.get(file);
+
+        if (
+          parsedFile &&
+          !hasDiscoverableParameterCallSite(
+            parsedFile.ast,
+            resolvedScopeNode,
+            parsedFile,
+            bindingResolver,
+          )
+        ) {
+          const origin = findStructuralOriginNode(
+            parsedFile.ast,
+            resolvedScopeNode,
+            parsedFile,
+            bindingResolver,
+          );
+
+          if (origin) {
+            const originNode = handleResolvedNode(
+              origin,
+              file,
+              source,
+              classifyStructuralOrigin(origin, parsedFile, bindingResolver),
+              false,
+            );
+            addEdge(parameterNode.id, originNode.id, "structural-origin");
+          }
+        }
       }
 
       return parameterNode;

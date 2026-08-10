@@ -654,6 +654,7 @@ interface DependencyEdge {
 | `"param-bind"` | An argument at a call site binds to a parameter |
 | `"closure"`    | `to` closes over the binding `from`             |
 | `"import"`     | `to` imports the binding `from`                 |
+| `"structural-origin"` | `to` identifies the function's structural origin |
 
 ---
 
