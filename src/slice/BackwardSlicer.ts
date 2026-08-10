@@ -2,7 +2,8 @@ import type { CallExpression } from "@oxc-project/types";
 import { assertNever } from "assert-never";
 import { visitorKeys } from "oxc-parser";
 
-import { isAstNode, walkAst } from "@/helpers";
+import { isAstNode, moduleCallKey, tryResolveModuleCall, walkAst } from "@/helpers";
+import { collectExports } from "@/helpers/module-boundary";
 import { BindingResolver } from "@/slice/BindingResolver";
 import { SeedExpander } from "@/slice/SeedExpander";
 import type {
@@ -17,6 +18,8 @@ import type {
   IIssueCollector,
   IssueKind,
   IssueResolution,
+  ModuleResolutionPlugin,
+  ModuleResolutionResult,
   NodeId,
   OffsetRange,
   ParsedFile,
@@ -414,14 +417,14 @@ const collectIdentifierDependencies = (
         return;
       }
 
-      const isCallee = parent?.type === "CallExpression" && parent.callee === node;
-      const edgeKind: EdgeKind = isCallee ? "call" : "data-flow";
+      const callSite = findCalleeCallSite(root, node);
+      const edgeKind: EdgeKind = callSite ? "call" : "data-flow";
 
       dependencies.push({
         name: node.name,
         node,
         edgeKind,
-        callSite: isCallee ? parent : undefined,
+        callSite,
       });
       seen.add(node.name);
     },
@@ -429,6 +432,45 @@ const collectIdentifierDependencies = (
   );
 
   return dependencies;
+};
+
+/**
+ * Find the identifier at the root of a direct or member-expression callee.
+ *
+ * @param callee Callee expression to inspect.
+ * @returns Root identifier or null when the callee has no identifier root.
+ */
+const findCalleeRootIdentifier = (callee: AstNode): AstNode | null => {
+  let current: AstNode = callee;
+
+  while (current.type === "MemberExpression") {
+    current = current.object;
+  }
+
+  return current.type === "Identifier" ? current : null;
+};
+
+/**
+ * Find the call site whose callee is rooted at an identifier.
+ *
+ * @param root AST subtree containing the identifier.
+ * @param identifier Identifier to locate as a callee root.
+ * @returns Matching call expression or undefined.
+ */
+const findCalleeCallSite = (root: AstNode, identifier: AstNode): CallExpression | undefined => {
+  let match: CallExpression | undefined;
+
+  walkAst(root, (node) => {
+    if (match !== undefined || node.type !== "CallExpression") {
+      return;
+    }
+
+    if (findCalleeRootIdentifier(node.callee) === identifier) {
+      match = node;
+    }
+  });
+
+  return match;
 };
 
 /**
@@ -783,6 +825,8 @@ export class BackwardSlicer {
   private readonly shaker: IShaker;
   private readonly collector: IIssueCollector;
   private readonly seedExpander: SeedExpander;
+  private readonly moduleResolutionPlugins: readonly ModuleResolutionPlugin[];
+  private readonly moduleResolutionCache: ReadonlyMap<SourceText, ModuleResolutionResult>;
 
   /**
    * Initialize a backward slicer with the required collaborators.
@@ -792,12 +836,21 @@ export class BackwardSlicer {
    * @param shaker Shaker used for intra-function pruning.
    * @param collector Issue collector to receive slice issues.
    */
-  constructor(parser: IParser, resolver: IResolver, shaker: IShaker, collector: IIssueCollector) {
+  constructor(
+    parser: IParser,
+    resolver: IResolver,
+    shaker: IShaker,
+    collector: IIssueCollector,
+    moduleResolutionPlugins: readonly ModuleResolutionPlugin[] = [],
+    moduleResolutionCache: ReadonlyMap<SourceText, ModuleResolutionResult> = new Map(),
+  ) {
     this.parser = parser;
     this.resolver = resolver;
     this.shaker = shaker;
     this.collector = collector;
     this.seedExpander = new SeedExpander();
+    this.moduleResolutionPlugins = moduleResolutionPlugins;
+    this.moduleResolutionCache = moduleResolutionCache;
   }
 
   /**
@@ -1337,6 +1390,182 @@ export class BackwardSlicer {
     };
 
     /**
+     * Process the exported bindings from a module claimed by a plugin.
+     *
+     * @param targetFile Resolved module file.
+     * @param targetParsed Parsed module file.
+     * @param ownerNodeId Node owning the module call.
+     * @param processedFiles Module files already traversed through plugins.
+     */
+    const processPluginModule = (
+      targetFile: AbsolutePath,
+      targetParsed: ParsedFile,
+      ownerNodeId: NodeId,
+      processedFiles: Set<AbsolutePath>,
+    ): void => {
+      if (processedFiles.has(targetFile)) {
+        return;
+      }
+
+      processedFiles.add(targetFile);
+
+      for (const exported of collectExports(targetParsed.ast)) {
+        if (exported.source !== undefined) {
+          const nextResult = this.resolver.resolve(exported.source, targetFile);
+
+          switch (nextResult.kind) {
+            case "resolved": {
+              const nextParsed = parsedFiles.get(nextResult.absolutePath);
+
+              if (nextParsed !== undefined) {
+                processPluginModule(
+                  nextResult.absolutePath,
+                  nextParsed,
+                  ownerNodeId,
+                  processedFiles,
+                );
+              }
+              break;
+            }
+            case "failed":
+            case "ignored":
+              break;
+            default:
+              return assertNever(nextResult);
+          }
+
+          continue;
+        }
+
+        const localName = exported.localName;
+        if (localName === undefined || localName === "*" || localName === "default") {
+          continue;
+        }
+
+        const resolved = bindingResolver.resolveWithScope(
+          localName,
+          targetParsed.ast,
+          targetParsed,
+        );
+
+        if (resolved === null) {
+          continue;
+        }
+
+        if (isFunctionNode(resolved.node)) {
+          processResolvedFunction(
+            resolved.node,
+            targetFile,
+            targetParsed.source,
+            ownerNodeId,
+            "import",
+            null,
+            false,
+          );
+          continue;
+        }
+
+        switch (resolved.node.type) {
+          case "VariableDeclarator": {
+            processResolvedVariable(
+              resolved.node,
+              resolved.scopeKind,
+              targetFile,
+              targetParsed.source,
+              ownerNodeId,
+              "import",
+              false,
+              targetParsed.ast,
+              resolved.scopeNode,
+            );
+            continue;
+          }
+          case "ClassDeclaration": {
+            processResolvedClass(
+              resolved.node,
+              targetFile,
+              targetParsed.source,
+              ownerNodeId,
+              "import",
+              false,
+              targetParsed.ast,
+              resolved.scopeNode,
+            );
+            break;
+          }
+          default:
+            break;
+        }
+      }
+    };
+
+    /**
+     * Resolve a non-standard module call through configured plugins.
+     *
+     * @param callSite Call expression being resolved.
+     * @param file Absolute path containing the call.
+     * @param source Source text containing the call.
+     * @param ownerNodeId Node owning the call.
+     * @param edgeKind Edge kind linking the owner to the call.
+     * @returns True when a plugin claimed the call.
+     */
+    const processPluginCall = (
+      callSite: CallExpression,
+      file: AbsolutePath,
+      source: SourceText,
+      ownerNodeId: NodeId,
+      edgeKind: EdgeKind,
+    ): boolean => {
+      const cacheKey = moduleCallKey(file, callSite);
+      const pluginResult = this.moduleResolutionCache.has(cacheKey)
+        ? (this.moduleResolutionCache.get(cacheKey) ?? null)
+        : tryResolveModuleCall(callSite, source, file, this.moduleResolutionPlugins);
+
+      if (pluginResult === null) {
+        return false;
+      }
+
+      const callNode = handleResolvedNode(callSite, file, source, "call-site", false);
+      addEdge(ownerNodeId, callNode.id, edgeKind);
+
+      const resolution = this.resolver.resolve(pluginResult.specifier, file);
+
+      switch (resolution.kind) {
+        case "resolved": {
+          const targetParsed = parsedFiles.get(resolution.absolutePath);
+
+          if (targetParsed === undefined) {
+            processUnresolved(callSite, file, source, callNode.id, "import");
+            return true;
+          }
+
+          processPluginModule(
+            resolution.absolutePath,
+            targetParsed,
+            callNode.id,
+            new Set<AbsolutePath>(),
+          );
+          return true;
+        }
+        case "ignored":
+          emitIssue(
+            this.collector,
+            "ignored-path",
+            rangeFromNode(callSite),
+            file,
+            resolution.matchedPattern,
+          );
+          handleResolvedNode(callSite, file, source, "ignored-leaf", false);
+          return true;
+        case "failed":
+          processUnresolved(callSite, file, source, callNode.id, "import");
+          return true;
+        default:
+          return assertNever(resolution);
+      }
+    };
+
+    /**
      * Process an import binding and follow its resolved target.
      *
      * @param importNode Import declaration node.
@@ -1667,6 +1896,28 @@ export class BackwardSlicer {
           break;
         }
         case "parameter": {
+          if (
+            item.callSite !== undefined &&
+            processPluginCall(
+              item.callSite,
+              item.file,
+              parsedFile.source,
+              item.ownerNodeId,
+              item.edgeKind,
+            )
+          ) {
+            break;
+          }
+
+          if (item.callSite !== undefined) {
+            emitIssue(
+              this.collector,
+              "unresolved-call-target",
+              rangeFromNode(item.callSite),
+              item.file,
+            );
+          }
+
           processResolvedParameter(
             resolved.node,
             item.file,

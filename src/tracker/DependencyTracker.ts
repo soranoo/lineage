@@ -4,7 +4,7 @@ import { assertNever } from "assert-never";
 import MagicString from "magic-string";
 
 import { MagicStringEditor } from "@/edit";
-import { walkAst } from "@/helpers";
+import { moduleCallKey, tryResolveModuleCall, walkAst } from "@/helpers";
 import { collectSpecifiers } from "@/helpers/module-boundary";
 import { DynamicPatternDetector, IssueCollector } from "@/issues";
 import { OxcParser } from "@/parse";
@@ -26,6 +26,8 @@ import type {
   ParsedFile,
   SlicedFile,
   SourceText,
+  ModuleResolutionPlugin,
+  ModuleResolutionResult,
   TrackRequest,
   TrackResult,
   TrackerConfig,
@@ -345,6 +347,8 @@ export class DependencyTracker {
   private readonly dynamicPatternDetector: DynamicPatternDetector;
   private readonly editor: IEditor;
   private readonly slicer: BackwardSlicer;
+  private readonly moduleResolutionPlugins: readonly ModuleResolutionPlugin[];
+  private readonly moduleResolutionCache: Map<SourceText, ModuleResolutionResult>;
 
   /**
    * Create a dependency tracker with default implementations or injected fakes.
@@ -369,7 +373,16 @@ export class DependencyTracker {
     this.issueCollector = dependencies.issueCollector ?? new IssueCollector();
     this.dynamicPatternDetector = new DynamicPatternDetector(this.issueCollector);
     this.editor = dependencies.editor ?? new MagicStringEditor();
-    this.slicer = new BackwardSlicer(this.parser, this.resolver, this.shaker, this.issueCollector);
+    this.moduleResolutionPlugins = config.moduleResolutionPlugins ?? [];
+    this.moduleResolutionCache = new Map<SourceText, ModuleResolutionResult>();
+    this.slicer = new BackwardSlicer(
+      this.parser,
+      this.resolver,
+      this.shaker,
+      this.issueCollector,
+      this.moduleResolutionPlugins,
+      this.moduleResolutionCache,
+    );
 
     prepopulateVirtualParsedFiles(this.parser, this.parsedCache, this.virtualFiles);
   }
@@ -477,6 +490,30 @@ export class DependencyTracker {
             assertNever(resolution);
         }
       }
+
+      walkAst(parsedFile.ast, (node) => {
+        if (node.type !== "CallExpression") {
+          return;
+        }
+
+        const cacheKey = moduleCallKey(nextFile, node);
+        const pluginResult = tryResolveModuleCall(
+          node,
+          parsedFile.source,
+          nextFile,
+          this.moduleResolutionPlugins,
+        );
+        this.moduleResolutionCache.set(cacheKey, pluginResult);
+
+        if (pluginResult === null) {
+          return;
+        }
+
+        const resolution = this.resolver.resolve(pluginResult.specifier, nextFile);
+        if (resolution.kind === "resolved" && !parsedFiles.has(resolution.absolutePath)) {
+          queue.push(resolution.absolutePath);
+        }
+      });
     }
 
     return parsedFiles;

@@ -513,6 +513,36 @@ const tracker = new DependencyTracker(config?: TrackerConfig);
 | ---------------- | ------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `resolver`       | `OxcResolverOptions`      | `undefined` | Options forwarded verbatim to [`oxc-resolver`](https://github.com/soranoo/oxc-resolver).                                                                          |
 | `ignorePatterns` | `Array<string \| RegExp>` | `[]`        | Paths to treat as leaf nodes. Strings are matched with `path.includes(pattern)`, RegExps with `pattern.test(path)`. `node_modules` is always implicitly included. |
+| `moduleResolutionPlugins` | `ModuleResolutionPlugin[]` | `[]` | Ordered handlers for non-standard module calls such as webpack's numeric module IDs. The first non-null result wins. |
+
+#### Module resolution plugins
+
+Bundled runtimes often express module loading as a call rather than an import,
+for example `n(9355)`. Lineage cannot infer which chunk owns that numeric ID,
+so callers can provide a plugin that maps the call to a normal module
+specifier. The resolved target is then traversed like an ordinary import.
+
+```ts
+const tracker = new DependencyTracker({
+  moduleResolutionPlugins: [
+    {
+      name: "webpack-module-ids",
+      tryResolve: ({ calleeText, args }) => {
+        if (calleeText !== "n" || typeof args[0] !== "number") return null;
+        const specifier = manifest.get(args[0]);
+        return specifier ? { specifier } : null;
+      },
+    },
+  ],
+});
+```
+
+Plugins receive `{ calleeText, args, file }`, where `args` contains only
+statically known string, number, and boolean literals. Returning `null` lets
+the next plugin try. When no plugin claims an unresolved parameter used as a
+callee, the tracker reports `unresolved-call-target` with `resolution: "leaf"`.
+Ordinary local calls still resolve normally, and call-assigned callees retain
+the existing `indirect-call` issue.
 
 **`tracker.track(request)`**
 
@@ -659,6 +689,7 @@ interface TrackerIssue {
 | `"indirect-call"`         | `const f = getFn(); f()`                  | Kept as leaf; no recursion into callee            |
 | `"prototype-mutation"`    | `Foo.prototype.x = ...`                   | Flagged only - cannot trace all instances         |
 | `"this-call"`             | `this.method()` - receiver unknown        | Call included; receiver flagged                   |
+| `"unresolved-call-target"` | Unresolved parameter used as a call callee | Kept as a leaf; no recursion                       |
 
 > [!WARNING]\
 > An issue does not mean the slice is wrong. It means the slice may be over-inclusive in that area. Always check `resolution` to understand what action was taken.

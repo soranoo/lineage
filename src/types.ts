@@ -250,6 +250,9 @@ export type ModuleResolutionPlugin = {
   }) => { specifier: ModuleSpecifier } | null;
 };
 
+/** Cached result from consulting a module-resolution plugin for one call. */
+export type ModuleResolutionResult = { specifier: ModuleSpecifier } | null;
+
 /**
  * Resolver dispatch tier used by `VirtualAwareResolver`.
  */

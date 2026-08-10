@@ -338,12 +338,20 @@ export class BindingResolver {
   ): LiteralValue[] => {
     switch (expression.type) {
       case "Literal": {
-        if (
-          typeof expression.value === "string" ||
-          typeof expression.value === "number" ||
-          typeof expression.value === "boolean"
-        ) {
-          return [expression.value];
+        switch (typeof expression.value) {
+          case "string":
+          case "number":
+          case "boolean": {
+            return [expression.value];
+          }
+          case "bigint":
+          case "function":
+          case "object":
+          case "symbol":
+          case "undefined":
+            break;
+          default:
+            assertNever(expression.value);
         }
 
         return [];
@@ -412,7 +420,9 @@ export class BindingResolver {
     parsedFile: ParsedFile,
     resolving: Set<AstNode>,
   ): LiteralValue[] => {
-    const parameterIndex = functionNode.params.findIndex((parameter) => parameter === parameterNode);
+    const parameterIndex = functionNode.params.findIndex(
+      (parameter) => parameter === parameterNode,
+    );
     const functionName = functionNode.id?.type === "Identifier" ? functionNode.id.name : null;
 
     if (parameterIndex < 0 || functionName === null) {

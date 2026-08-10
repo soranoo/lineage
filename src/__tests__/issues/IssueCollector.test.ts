@@ -26,6 +26,9 @@ const issueKinds: IssueKind[] = [
   "indirect-call",
   "prototype-mutation",
   "this-call",
+  "dynamic-require",
+  "usage-cap-reached",
+  "unresolved-call-target",
 ];
 
 /**

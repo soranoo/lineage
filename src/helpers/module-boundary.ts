@@ -54,15 +54,14 @@ const getRequireSpecifier = (node: AstNode | null): ModuleSpecifier | null => {
 };
 
 const getPatternIdentifier = (node: AstNode): LocalAlias | null => {
-  if (node.type === "Identifier") {
-    return node.name;
+  switch (node.type) {
+    case "Identifier":
+      return node.name;
+    case "AssignmentPattern":
+      return getPatternIdentifier(node.left);
+    default:
+      return null;
   }
-
-  if (node.type === "AssignmentPattern") {
-    return getPatternIdentifier(node.left);
-  }
-
-  return null;
 };
 
 const getStaticPropertyName = (node: AstNode): ExportedName | null => {
@@ -168,15 +167,15 @@ const collectDeclarationExports = (node: AstNode | null): ExportedBinding[] => {
     return [];
   }
 
-  if (node.type === "VariableDeclaration") {
-    return collectVariableExports(node);
+  switch (node.type) {
+    case "VariableDeclaration":
+      return collectVariableExports(node);
+    case "FunctionDeclaration":
+    case "ClassDeclaration":
+      return node.id === null ? [] : [{ exportedName: node.id.name, localName: node.id.name }];
+    default:
+      return [];
   }
-
-  if (node.type === "FunctionDeclaration" || node.type === "ClassDeclaration") {
-    return node.id === null ? [] : [{ exportedName: node.id.name, localName: node.id.name }];
-  }
-
-  return [];
 };
 
 const collectImportDeclaration = (
