@@ -129,6 +129,57 @@ export type LiteralValue = string | number | boolean;
 /** Maximum number of usage nodes a forward traversal may produce. */
 export type UsageNodeLimit = number;
 
+/** Classification of a direct binding reference. */
+export type ReferenceKind =
+  /** The binding is read at the reference site. */
+  | "read"
+  /** The binding is assigned or updated at the reference site. */
+  | "write";
+
+/** Structural context surrounding a direct binding reference. */
+export type ReferenceParentContext =
+  /** The reference is an ordinary read. */
+  | "read"
+  /** The reference is the value of a new variable declarator. */
+  | "declarator"
+  /** The reference is the source of a destructuring declarator. */
+  | "destructure"
+  /** The reference is passed as a call argument. */
+  | "call-argument"
+  /** The reference is returned from its enclosing function. */
+  | "return"
+  /** The reference is assigned to an object property. */
+  | "property-write"
+  /** The reference is spread into another value. */
+  | "spread"
+  /** The reference is an assignment or update target. */
+  | "write";
+
+/** A direct read or write of a binding within its scope. */
+export type ReferenceSite = {
+  /** Identifier AST node representing the reference. */
+  node: AstNode;
+  /** Whether the reference reads or writes the binding. */
+  kind: ReferenceKind;
+  /** Whether the reference is inside a nested function scope. */
+  insideClosure: boolean;
+  /** Structural context used by forward usage classification. */
+  parentContext: ReferenceParentContext;
+};
+
+/** Scope classification used during binding lookup and reference finding. */
+export type ScopeKind = "program" | "function" | "block";
+
+/** Scope container with bindings collected from an AST. */
+export type Scope = {
+  /** AST node that owns the scope. */
+  node: AstNode;
+  /** Scope classification. */
+  kind: ScopeKind;
+  /** Binding map keyed by identifier name. */
+  bindings: Map<SourceText, AstNode>;
+};
+
 /**
  * Human-readable issue message for a tracker issue.
  */

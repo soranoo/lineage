@@ -510,6 +510,8 @@ src/
     BackwardSlicer.ts         <- worklist implementation
     SeedExpander.ts           <- phase 1 seed extraction
     BindingResolver.ts        <- scope-aware name to node lookup
+  usage/
+    ReferenceFinder.ts        <- direct read/write reference lookup
   shake/
     Shaker.ts                 <- IShaker interface
     IntraFunctionShaker.ts    <- implementation
@@ -521,6 +523,7 @@ src/
     DynamicPatternDetector.ts <- AST walker for dynamic patterns
   helpers/
     ast-walker.ts             <- pure helper
+    scope.ts                  <- shared lexical scope construction
     offset-from-line-col.ts   <- pure helper
 
 src/__tests__/
@@ -532,6 +535,7 @@ src/__tests__/
   issues/                     <- mirrors src/issues/
   helpers/                    <- mirrors src/helpers/
   tracker/                    <- mirrors src/tracker/
+  usage/                      <- mirrors src/usage/
   _fakes/                     <- non-mirrored: shared hand-rolled fakes
     FakeParser.test.ts
     FakeParser.ts
