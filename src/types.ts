@@ -395,6 +395,28 @@ export type UsageResult = {
   issues: TrackerIssue[];
 };
 
+/** A resolved declaration used as the root of one forward scan. */
+export type UsageSeed = {
+  /** Absolute path containing the binding. */
+  file: AbsolutePath;
+  /** Binding name to find references for. */
+  name: SourceText;
+  /** AST node that introduces the binding. */
+  declaration: AstNode;
+  /** Lexical scope that owns the binding. */
+  scopeNode: AstNode;
+};
+
+/** Output produced by the forward slicer before source editing. */
+export type UsageSliceResult = {
+  /** Usage nodes discovered during the scan. */
+  nodes: UsageNode[];
+  /** Edges connecting the seed, references, and import boundaries. */
+  edges: UsageEdge[];
+  /** Issues raised while traversing usage sites. */
+  issues: TrackerIssue[];
+};
+
 /** A node in the forward usage graph. */
 export type UsageNode = {
   /** Stable unique node identifier. */

@@ -1,7 +1,7 @@
 import { assertNever } from "assert-never";
 import { visitorKeys } from "oxc-parser";
 
-import { isAstNode } from "@/helpers/ast-walker";
+import { isAstNode, walkAst } from "@/helpers/ast-walker";
 import type { AstNode, Scope, SourceText } from "@/types";
 
 /**
@@ -39,6 +39,17 @@ const findNearestNonBlockScope = (scopeStack: Scope[]): Scope => {
   return fallback;
 };
 
+const registerPatternBindings = (pattern: AstNode, scope: Scope): void => {
+  walkAst(pattern, (node, parent) => {
+    if (
+      node.type === "Identifier" &&
+      !(parent?.type === "Property" && parent.key === node && parent.value !== node)
+    ) {
+      scope.bindings.set(node.name, node);
+    }
+  });
+};
+
 /**
  * Register declarations encountered at the current traversal position.
  *
@@ -58,6 +69,8 @@ const registerBindings = (node: AstNode, scopeStack: Scope[]): void => {
       for (const declarator of node.declarations) {
         if (declarator.id.type === "Identifier") {
           targetScope.bindings.set(declarator.id.name, declarator);
+        } else {
+          registerPatternBindings(declarator.id, targetScope);
         }
       }
       return;

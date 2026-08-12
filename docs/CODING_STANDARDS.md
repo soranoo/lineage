@@ -512,6 +512,9 @@ src/
     BindingResolver.ts        <- scope-aware name to node lookup
   usage/
     ReferenceFinder.ts        <- direct read/write reference lookup
+    UsageSlicer.ts            <- forward slicer interface
+    UsageSeedExpander.ts      <- forward seed extraction
+    ForwardSlicer.ts          <- classified forward usage scan
   shake/
     Shaker.ts                 <- IShaker interface
     IntraFunctionShaker.ts    <- implementation
@@ -536,12 +539,16 @@ src/__tests__/
   helpers/                    <- mirrors src/helpers/
   tracker/                    <- mirrors src/tracker/
   usage/                      <- mirrors src/usage/
+    forward_slicer.test.ts
+    usage_seed_expander.test.ts
+    usage_slicer.test.ts
   _fakes/                     <- non-mirrored: shared hand-rolled fakes
     FakeParser.test.ts
     FakeParser.ts
     FakeResolver.test.ts
     FakeResolver.ts
     FakeShaker.ts
+    FakeProjectIndex.ts
   _fixtures/                  <- non-mirrored: real source files and pipeline tests
     linear-chain/
     intra-shake/
