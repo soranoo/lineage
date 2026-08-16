@@ -1,7 +1,6 @@
 import { readFileSync } from "node:fs";
 
 import { assertNever } from "assert-never";
-import MagicString from "magic-string";
 
 import { MagicStringEditor } from "@/edit";
 import { moduleCallKey, tryResolveModuleCall, walkAst } from "@/helpers";
@@ -12,17 +11,14 @@ import { IgnoreFilter, OxcResolver } from "@/resolve";
 import { VirtualAwareResolver } from "@/resolve";
 import { IntraFunctionShaker } from "@/shake";
 import { BackwardSlicer } from "@/slice";
+import { assembleSlicedOutput, isDependencyNodeKeepWorthy } from "@/tracker/sliceOutput";
 import type {
   AbsolutePath,
-  AstNode,
-  DependencyNode,
   IEditor,
   IIssueCollector,
   IParser,
   IResolver,
   IShaker,
-  OffsetRange,
-  OutputMode,
   ParsedFile,
   SlicedFile,
   SourceText,
@@ -133,208 +129,6 @@ const collectModuleSpecifiers = (parsedFile: ParsedFile): SourceText[] => {
 };
 
 /**
- * Build a deduplicated set of keep ranges from dependency nodes for one file.
- *
- * @param ranges Raw node ranges to keep.
- * @returns Keep-range set compatible with the editor interface.
- */
-const buildKeepRangeSet = (ranges: OffsetRange[]): Set<OffsetRange> => {
-  const byKey = new Map<SourceText, OffsetRange>();
-
-  for (const range of ranges) {
-    const key: SourceText = `${range.start}:${range.end}`;
-    byKey.set(key, range);
-  }
-
-  return new Set(byKey.values());
-};
-
-/**
- * Check whether a container node fully contains a target range.
- *
- * @param container Node that may contain the range.
- * @param range Range to test.
- * @returns True when the range is inside the container.
- */
-const containsRange = (container: AstNode, range: OffsetRange): boolean =>
-  container.start <= range.start && container.end >= range.end;
-
-/**
- * Check whether a node can define a keep-range boundary.
- *
- * @param node AST node to inspect.
- * @returns True when the node is a statement/declaration boundary.
- */
-const isKeepBoundaryNode = (node: AstNode): boolean => {
-  if (node.type.endsWith("Statement") || node.type.endsWith("Declaration")) {
-    return true;
-  }
-
-  return false;
-};
-
-/**
- * Check whether an AST node is a function expression or declaration.
- *
- * @param node AST node to inspect.
- * @returns True when the node represents a function.
- */
-const isFunctionNode = (node: AstNode): boolean =>
-  node.type === "ArrowFunctionExpression" ||
-  node.type === "FunctionDeclaration" ||
-  node.type === "FunctionExpression" ||
-  node.type === "TSDeclareFunction" ||
-  node.type === "TSEmptyBodyFunctionExpression";
-
-/**
- * Select the smallest node span from a non-empty candidate list.
- *
- * @param candidates Candidate nodes.
- * @returns Smallest-span node.
- */
-const selectSmallestNode = (candidates: AstNode[]): AstNode => {
-  const [first, ...rest] = candidates;
-
-  if (first === undefined) {
-    throw new Error("Expected at least one AST node candidate.");
-  }
-
-  let smallest = first;
-
-  for (const node of rest) {
-    const smallestSize = smallest.end - smallest.start;
-    const nodeSize = node.end - node.start;
-
-    if (nodeSize < smallestSize) {
-      smallest = node;
-    }
-  }
-
-  return smallest;
-};
-
-/**
- * Expand a dependency-node range to its nearest statement/declaration boundary.
- *
- * @param ast AST root for the current file.
- * @param range Dependency-node range.
- * @returns Expanded statement/declaration range when found; otherwise original range.
- */
-const expandRangeToBoundary = (ast: AstNode, range: OffsetRange): OffsetRange => {
-  const boundaryMatches: AstNode[] = [];
-  const exportMatches: AstNode[] = [];
-
-  walkAst(ast, (node) => {
-    if (!isKeepBoundaryNode(node) || !containsRange(node, range)) {
-      return;
-    }
-
-    boundaryMatches.push(node);
-
-    if (
-      node.type === "ExportNamedDeclaration" ||
-      node.type === "ExportDefaultDeclaration" ||
-      node.type === "ExportAllDeclaration"
-    ) {
-      exportMatches.push(node);
-    }
-  });
-
-  if (exportMatches.length > 0) {
-    const selectedExport = selectSmallestNode(exportMatches);
-    return { start: selectedExport.start, end: selectedExport.end };
-  }
-
-  if (boundaryMatches.length === 0) {
-    return { start: range.start, end: range.end };
-  }
-
-  const selectedBoundary = selectSmallestNode(boundaryMatches);
-  return { start: selectedBoundary.start, end: selectedBoundary.end };
-};
-
-/**
- * Find the smallest enclosing function's output boundary for a range.
- *
- * @param ast AST root to inspect.
- * @param range Range whose function body should be preserved.
- * @returns Enclosing function boundary, or null when the range is outside functions.
- */
-const findEnclosingFunctionBoundary = (ast: AstNode, range: OffsetRange): OffsetRange | null => {
-  const functions: AstNode[] = [];
-
-  walkAst(ast, (node) => {
-    if (isFunctionNode(node) && containsRange(node, range)) {
-      functions.push(node);
-    }
-  });
-
-  if (functions.length === 0) {
-    return null;
-  }
-
-  return expandRangeToBoundary(ast, selectSmallestNode(functions));
-};
-
-/**
- * Determine whether a dependency node should contribute to output keep ranges.
- *
- * @param node Dependency node to evaluate.
- * @returns True when the node should preserve output text.
- */
-const shouldKeepNodeForOutput = (node: DependencyNode): boolean => {
-  switch (node.kind) {
-    case "parameter":
-      return false;
-    case "start-point":
-    case "variable":
-    case "function":
-    case "call-site":
-    case "import":
-    case "global":
-    case "re-export":
-    case "ignored-leaf":
-    case "unresolved-leaf":
-      return true;
-    default:
-      return assertNever(node.kind);
-  }
-};
-
-/**
- * Convert dependency nodes into output keep ranges.
- *
- * @param nodes Dependency nodes from one file.
- * @param parsedFile Parsed file of the current source file.
- * @returns Keep ranges used by the editor.
- */
-const toOutputKeepRanges = (
-  nodes: DependencyNode[],
-  parsedFile: ParsedFile,
-  keepEnclosingFunctions: boolean,
-): Set<OffsetRange> => {
-  const ranges: OffsetRange[] = [];
-
-  for (const node of nodes) {
-    if (node.shaken !== false || !shouldKeepNodeForOutput(node)) {
-      continue;
-    }
-
-    ranges.push(expandRangeToBoundary(parsedFile.ast, node.range));
-
-    if (keepEnclosingFunctions) {
-      const functionBoundary = findEnclosingFunctionBoundary(parsedFile.ast, node.range);
-
-      if (functionBoundary !== null) {
-        ranges.push(functionBoundary);
-      }
-    }
-  }
-
-  return buildKeepRangeSet(ranges);
-};
-
-/**
  * Orchestrates parsing, slicing, and source editing for dependency tracking.
  */
 export class DependencyTracker {
@@ -404,13 +198,17 @@ export class DependencyTracker {
       parsedFiles,
       request.shake !== false,
     );
-    const mode = this.resolveOutputMode(request);
-    const files = this.buildSlicedFiles(
-      sliceResult.nodes,
-      parsedFiles,
-      mode,
-      request.shake === false,
-    );
+    const files =
+      request.output === undefined
+        ? new Map<AbsolutePath, SlicedFile>()
+        : assembleSlicedOutput(
+            sliceResult.nodes,
+            parsedFiles,
+            request.output.mode ?? "blank",
+            isDependencyNodeKeepWorthy,
+            this.editor,
+            request.shake === false,
+          );
 
     return {
       files,
@@ -418,27 +216,6 @@ export class DependencyTracker {
       edges: sliceResult.edges,
       issues: this.issueCollector.getAll(),
     };
-  };
-
-  /**
-   * Resolve the effective output mode for a tracking request.
-   *
-   * @param request Track request whose output mode is inspected.
-   * @returns Explicit request mode when present, otherwise blank mode.
-   */
-  private readonly resolveOutputMode = (request: TrackRequest): OutputMode => {
-    const mode = request.output?.mode;
-
-    switch (mode) {
-      case undefined:
-        return "blank";
-      case "blank":
-        return "blank";
-      case "compact":
-        return "compact";
-      default:
-        return assertNever(mode);
-    }
   };
 
   /**
@@ -517,55 +294,6 @@ export class DependencyTracker {
     }
 
     return parsedFiles;
-  };
-
-  /**
-   * Build edited file outputs for files that contributed dependency nodes.
-   *
-   * @param nodes Dependency nodes produced by slicing.
-   * @param parsedFiles Parsed files available for source lookups.
-   * @param mode Output mode for edit behavior.
-   * @returns Map of sliced files keyed by absolute path.
-   */
-  private readonly buildSlicedFiles = (
-    nodes: DependencyNode[],
-    parsedFiles: Map<AbsolutePath, ParsedFile>,
-    mode: OutputMode,
-    keepEnclosingFunctions: boolean,
-  ): Map<AbsolutePath, SlicedFile> => {
-    const files = new Map<AbsolutePath, SlicedFile>();
-    const nodesByFile = new Map<AbsolutePath, DependencyNode[]>();
-
-    for (const node of nodes) {
-      const existing = nodesByFile.get(node.file);
-
-      if (existing === undefined) {
-        nodesByFile.set(node.file, [node]);
-        continue;
-      }
-
-      existing.push(node);
-    }
-
-    for (const [file, fileNodes] of nodesByFile) {
-      const parsedFile = parsedFiles.get(file);
-
-      if (parsedFile === undefined) {
-        continue;
-      }
-
-      const keepRanges = toOutputKeepRanges(fileNodes, parsedFile, keepEnclosingFunctions);
-      const ms = new MagicString(parsedFile.source);
-      this.editor.apply(ms, parsedFile.source, keepRanges, mode);
-
-      files.set(file, {
-        path: file,
-        ms,
-        originalSource: parsedFile.source,
-      });
-    }
-
-    return files;
   };
 
   /**

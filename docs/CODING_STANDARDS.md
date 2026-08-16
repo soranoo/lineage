@@ -265,7 +265,7 @@ Every class must follow these constraints:
 
 - **Single responsibility**: one class, one job. If a second concern appears, extract a new class.
 - **Depend on interfaces, not implementations**: constructor injection is the only accepted DI pattern. No service locators, no singletons, no static stateful methods.
-- **`DependencyTracker` is the only exported class** from `src/index.ts`. All other classes are internal and must not be exported.
+- **`DependencyTracker` is the public tracker class** from `src/index.ts`; public helper functions such as `assembleSlicedOutput` may also be exported. Other implementation classes remain internal.
 
 ```ts
 // correct - depends on IParser interface, not OxcParser directly
@@ -497,7 +497,8 @@ src/
   index.ts                    <- public API only; no logic here
   types.ts                    <- all shared types; imported everywhere via @/types
   tracker/
-    DependencyTracker.ts      <- orchestrator (the only exported class)
+    DependencyTracker.ts      <- backward-tracking orchestrator
+    sliceOutput.ts            <- shared, opt-in sliced source assembly
   parse/
     Parser.ts                 <- IParser interface
     OxcParser.ts              <- implementation
@@ -538,6 +539,7 @@ src/__tests__/
   issues/                     <- mirrors src/issues/
   helpers/                    <- mirrors src/helpers/
   tracker/                    <- mirrors src/tracker/
+    slice_output.test.ts       <- shared output assembly and merge behavior
   usage/                      <- mirrors src/usage/
     forward_slicer.test.ts
     usage_seed_expander.test.ts

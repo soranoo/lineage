@@ -12,6 +12,12 @@ Follow the lineage of any value, across every file.
 
 Give me a ⭐ if you like it.
 
+> [!CAUTION]\
+> **Breaking change in 2.0.0:** sliced file output is now opt-in. If your
+> code reads `result.files`, pass `output: { mode: "blank" }` to
+> `tracker.track()`. Calls without `output` return an empty `files` map. See
+> the [upgrade guide](docs/UPGRADE_GUIDE.md) for migration details.
+
 ---
 
 ## 📖 Table of Contents
@@ -22,6 +28,7 @@ Give me a ⭐ if you like it.
 - [⚙️ How It Works](#️-how-it-works)
 - [📦 API Reference](#-api-reference)
   - [DependencyTracker](#dependencytracker)
+  - [assembleSlicedOutput](#assembleslicedoutput)
   - [offsetFromLineCol](#offsetfromlinecol)
   - [TrackResult](#trackresult)
   - [nodes](#nodes--dependencynode)
@@ -114,7 +121,7 @@ const result = await tracker.track({
   entryFile: SOURCE_PATH,
   startPoint: { start, end },
   shake: true, // prune unused statements inside touched functions (default)
-  output: { mode: "blank" }, // "blank" (default) | "compact"
+  output: { mode: "blank" }, // "blank" or "compact"; output is opt-in
 });
 
 // Sliced source - non-dependency lines are blanked out
@@ -400,6 +407,9 @@ const result2 = await tracker.track({
 > [!TIP]\
 > Each `track()` call returns an independent `TrackResult`. Results never bleed into each other - issues, nodes, and `MagicString` instances are all fresh per call.
 
+> [!NOTE]\
+> `output` is opt-in. When it is omitted, `result.files` is an empty `Map` and no `MagicString` output is assembled. Pass `output: { mode: "blank" }` to preserve the pre-2.0 behavior.
+
 ---
 
 ## ⚙️ How It Works
@@ -501,7 +511,7 @@ graph LR
 
 ### `DependencyTracker`
 
-The only exported class. Create one instance per project configuration and reuse it across multiple `track()` calls.
+The primary exported class. Create one instance per project configuration and reuse it across multiple `track()` calls.
 
 ```ts
 const tracker = new DependencyTracker(config?: TrackerConfig);
@@ -509,11 +519,11 @@ const tracker = new DependencyTracker(config?: TrackerConfig);
 
 **`TrackerConfig`**
 
-| Field            | Type                      | Default     | Description                                                                                                                                                       |
-| ---------------- | ------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `resolver`       | `OxcResolverOptions`      | `undefined` | Options forwarded verbatim to [`oxc-resolver`](https://github.com/soranoo/oxc-resolver).                                                                          |
-| `ignorePatterns` | `Array<string \| RegExp>` | `[]`        | Paths to treat as leaf nodes. Strings are matched with `path.includes(pattern)`, RegExps with `pattern.test(path)`. `node_modules` is always implicitly included. |
-| `moduleResolutionPlugins` | `ModuleResolutionPlugin[]` | `[]` | Ordered handlers for non-standard module calls such as webpack's numeric module IDs. The first non-null result wins. |
+| Field                     | Type                       | Default     | Description                                                                                                                                                       |
+| ------------------------- | -------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `resolver`                | `OxcResolverOptions`       | `undefined` | Options forwarded verbatim to [`oxc-resolver`](https://github.com/soranoo/oxc-resolver).                                                                          |
+| `ignorePatterns`          | `Array<string \| RegExp>`  | `[]`        | Paths to treat as leaf nodes. Strings are matched with `path.includes(pattern)`, RegExps with `pattern.test(path)`. `node_modules` is always implicitly included. |
+| `moduleResolutionPlugins` | `ModuleResolutionPlugin[]` | `[]`        | Ordered handlers for non-standard module calls such as webpack's numeric module IDs. The first non-null result wins.                                              |
 
 #### Module resolution plugins
 
@@ -552,15 +562,50 @@ const result = await tracker.track(request: TrackRequest): Promise<TrackResult>
 
 **`TrackRequest`**
 
-| Field         | Type                   | Default   | Description                                                                                                                           |
-| ------------- | ---------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `entryFile`   | `string`               | required  | Absolute path to the file containing the start point.                                                                                 |
-| `startPoint`  | `OffsetRange`          | required  | 0-based character offset range of the start-point node. Use `offsetFromLineCol()` to convert from line/col.                           |
-| `shake`       | `boolean`              | `true`     | When `false`, keep every statement in touched function bodies and produce no shaken nodes.                                           |
-| `output.mode` | `"blank" \| "compact"` | `"blank"` | `blank` - replaces removed code with spaces, preserving original offsets. `compact` - excises removed code, producing shorter output. |
+| Field         | Type                   | Default  | Description                                                                                                                                                                        |
+| ------------- | ---------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `entryFile`   | `string`               | required | Absolute path to the file containing the start point.                                                                                                                              |
+| `startPoint`  | `OffsetRange`          | required | 0-based character offset range of the start-point node. Use `offsetFromLineCol()` to convert from line/col.                                                                        |
+| `shake`       | `boolean`              | `true`   | When `false`, keep every statement in touched function bodies and produce no shaken nodes.                                                                                         |
+| `output.mode` | `"blank" \| "compact"` | omitted  | `blank` - replaces removed code with spaces, preserving original offsets. `compact` - excises removed code, producing shorter output. When omitted, no sliced files are assembled. |
 
 > [!IMPORTANT]\
 > `StartPointNotFoundError` is thrown if the `startPoint` offset range does not correspond to any AST node in `entryFile`.
+
+---
+
+### `assembleSlicedOutput`
+
+Public, kind-agnostic output assembly for accumulated dependency and usage
+nodes. Use it when several independent tracker calls contribute nodes to the
+same files and the source should be edited once at the end.
+
+```ts
+import { assembleSlicedOutput } from "@soranoo/lineage";
+import type { SliceOutputNode } from "@soranoo/lineage";
+
+const nodes: SliceOutputNode[] = [...dependencyResult.nodes, ...usageResult.nodes];
+
+const files = assembleSlicedOutput(nodes, parsedFiles, "blank", shouldKeepNode);
+```
+
+**Signature**
+
+```ts
+const assembleSlicedOutput = <TNode extends SliceOutputNode>(
+  nodes: readonly TNode[],
+  parsedFiles: ReadonlyMap<AbsolutePath, ParsedFile>,
+  mode: OutputMode,
+  shouldKeepNode: (node: TNode) => boolean,
+  editor?: IEditor,
+  keepEnclosingFunctions?: boolean,
+) => Map<AbsolutePath, SlicedFile>;
+```
+
+Nodes are grouped by file before editing, so overlapping ranges from separate
+dependency and usage calls produce one merged `SlicedFile` per file. The
+caller supplies parsed files and the predicate that identifies nodes whose
+source ranges should be kept.
 
 ---
 
@@ -647,13 +692,13 @@ interface DependencyEdge {
 
 **`EdgeKind` values**
 
-| Value          | Meaning                                         |
-| -------------- | ----------------------------------------------- |
-| `"data-flow"`  | The value of `from` is read by `to`             |
-| `"call"`       | `to` calls `from`                               |
-| `"param-bind"` | An argument at a call site binds to a parameter |
-| `"closure"`    | `to` closes over the binding `from`             |
-| `"import"`     | `to` imports the binding `from`                 |
+| Value                 | Meaning                                          |
+| --------------------- | ------------------------------------------------ |
+| `"data-flow"`         | The value of `from` is read by `to`              |
+| `"call"`              | `to` calls `from`                                |
+| `"param-bind"`        | An argument at a call site binds to a parameter  |
+| `"closure"`           | `to` closes over the binding `from`              |
+| `"import"`            | `to` imports the binding `from`                  |
 | `"structural-origin"` | `to` identifies the function's structural origin |
 
 ---
@@ -678,19 +723,19 @@ interface TrackerIssue {
 
 **`IssueKind` values**
 
-| Value                     | Trigger                                   | Conservative action                               |
-| ------------------------- | ----------------------------------------- | ------------------------------------------------- |
-| `"unresolved-dependency"` | Binding not found in any file             | Kept as `"unresolved-leaf"`                       |
-| `"ignored-path"`          | Resolved path matched an ignore pattern   | Kept as `"ignored-leaf"`; `matchedPattern` is set |
-| `"dynamic-import"`        | `import(expr)` with non-literal specifier | Kept as leaf; no recursion                        |
-| `"computed-property"`     | `obj[expr]` - property name unknown       | Full object bindings included                     |
-| `"eval"`                  | `eval(...)` call                          | Entire enclosing scope included                   |
-| `"arguments-object"`      | Use of `arguments` inside a function      | All parameters treated as on-path                 |
-| `"rest-spread-unknown"`   | `...spread` of unknown shape              | Spread source binding included                    |
-| `"indirect-call"`         | `const f = getFn(); f()`                  | Kept as leaf; no recursion into callee            |
-| `"prototype-mutation"`    | `Foo.prototype.x = ...`                   | Flagged only - cannot trace all instances         |
-| `"this-call"`             | `this.method()` - receiver unknown        | Call included; receiver flagged                   |
-| `"unresolved-call-target"` | Unresolved parameter used as a call callee | Kept as a leaf; no recursion                       |
+| Value                      | Trigger                                    | Conservative action                               |
+| -------------------------- | ------------------------------------------ | ------------------------------------------------- |
+| `"unresolved-dependency"`  | Binding not found in any file              | Kept as `"unresolved-leaf"`                       |
+| `"ignored-path"`           | Resolved path matched an ignore pattern    | Kept as `"ignored-leaf"`; `matchedPattern` is set |
+| `"dynamic-import"`         | `import(expr)` with non-literal specifier  | Kept as leaf; no recursion                        |
+| `"computed-property"`      | `obj[expr]` - property name unknown        | Full object bindings included                     |
+| `"eval"`                   | `eval(...)` call                           | Entire enclosing scope included                   |
+| `"arguments-object"`       | Use of `arguments` inside a function       | All parameters treated as on-path                 |
+| `"rest-spread-unknown"`    | `...spread` of unknown shape               | Spread source binding included                    |
+| `"indirect-call"`          | `const f = getFn(); f()`                   | Kept as leaf; no recursion into callee            |
+| `"prototype-mutation"`     | `Foo.prototype.x = ...`                    | Flagged only - cannot trace all instances         |
+| `"this-call"`              | `this.method()` - receiver unknown         | Call included; receiver flagged                   |
+| `"unresolved-call-target"` | Unresolved parameter used as a call callee | Kept as a leaf; no recursion                      |
 
 > [!WARNING]\
 > An issue does not mean the slice is wrong. It means the slice may be over-inclusive in that area. Always check `resolution` to understand what action was taken.

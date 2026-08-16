@@ -594,7 +594,10 @@ describe("DependencyTracker", () => {
       };
       const tracker = await createTracker({});
 
-      const result = await tracker.track({ entryFile, startPoint });
+      const result = await tracker.track({
+        entryFile,
+        startPoint,
+      });
 
       expect(result.nodes.some((node) => node.kind === "start-point")).toBe(true);
       expect(
@@ -627,7 +630,10 @@ describe("DependencyTracker", () => {
       };
       const tracker = await createTracker({});
 
-      const result = await tracker.track({ entryFile, startPoint });
+      const result = await tracker.track({
+        entryFile,
+        startPoint,
+      });
 
       expect(result.nodes.some((node) => node.kind === "start-point")).toBe(true);
       expect(
@@ -854,7 +860,11 @@ describe("DependencyTracker", () => {
       };
       const tracker = await createTracker({});
 
-      const result = await tracker.track({ entryFile, startPoint });
+      const result = await tracker.track({
+        entryFile,
+        startPoint,
+        output: { mode: "blank" },
+      });
       const startNode = result.nodes.find((node) => node.kind === "start-point");
 
       expect(startNode).toBeDefined();

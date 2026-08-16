@@ -14,10 +14,15 @@ describe("multi-call fixture", () => {
     const firstStart = findRange(unresolvedSource, "unresolvedResult = missingTransform(value)");
     const secondStart = findRange(unresolvedSource, "const value = 2;");
 
-    const firstResult = await tracker.track({ entryFile: unresolvedPath, startPoint: firstStart });
+    const firstResult = await tracker.track({
+      entryFile: unresolvedPath,
+      startPoint: firstStart,
+      output: { mode: "blank" },
+    });
     const secondResult = await tracker.track({
       entryFile: unresolvedPath,
       startPoint: secondStart,
+      output: { mode: "blank" },
     });
 
     expect(parser.getCache().size).toBe(1);

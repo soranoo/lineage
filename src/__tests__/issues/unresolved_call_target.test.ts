@@ -2,22 +2,13 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-import { DependencyTracker } from "@/index";
 import { toFixturePath } from "@/__tests__/utils";
-import type {
-  AbsolutePath,
-  ModuleResolutionPlugin,
-  OffsetRange,
-  SourceText,
-} from "@/types";
+import { DependencyTracker } from "@/index";
+import type { AbsolutePath, ModuleResolutionPlugin, OffsetRange, SourceText } from "@/types";
 
 const entryFile: AbsolutePath = "/virtual/entry.ts";
 
-const source: SourceText = [
-  "function execute(loader) {",
-  "  return loader(9355);",
-  "}",
-].join("\n");
+const source: SourceText = ["function execute(loader) {", "  return loader(9355);", "}"].join("\n");
 
 const callRange: OffsetRange = {
   start: source.indexOf("loader(9355)"),
@@ -96,9 +87,9 @@ describe("unresolved call targets", () => {
 
     expect(seen).toEqual([["loader", [9355], entryFile]]);
     expect(result.issues.some((issue) => issue.kind === "unresolved-call-target")).toBe(false);
-    expect(result.nodes.some((node) => node.file === targetFile && node.label.includes("value"))).toBe(
-      true,
-    );
+    expect(
+      result.nodes.some((node) => node.file === targetFile && node.label.includes("value")),
+    ).toBe(true);
   });
 
   it("tries plugins in order when earlier plugins decline", async () => {
@@ -194,6 +185,7 @@ describe("unresolved call targets", () => {
     const withoutPlugin = await new DependencyTracker({ virtualFiles: files }).track({
       entryFile: pageFile,
       startPoint,
+      output: { mode: "blank" },
     });
     const withPlugin = await new DependencyTracker({
       virtualFiles: files,
@@ -207,6 +199,7 @@ describe("unresolved call targets", () => {
     }).track({
       entryFile: pageFile,
       startPoint,
+      output: { mode: "blank" },
     });
 
     expect(withoutPlugin.issues.some((issue) => issue.kind === "unresolved-call-target")).toBe(

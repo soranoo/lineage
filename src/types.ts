@@ -433,6 +433,12 @@ export type UsageNode = {
   continuation?: UsageContinuation;
 };
 
+/** A node kind accepted by the shared sliced-output assembler. */
+export type SliceOutputNode = DependencyNode | UsageNode;
+
+/** Selects the nodes whose source ranges should be preserved in output. */
+export type OutputKeepNodePredicate<TNode extends SliceOutputNode> = (node: TNode) => boolean;
+
 /** Classification of a forward usage node. */
 export type UsageKind =
   /** The declaration marked as the usage start point. */
