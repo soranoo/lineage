@@ -12,8 +12,6 @@ const isBindingIdentifier = (node: AstNode, parent: AstNode | null): boolean => 
   }
 
   switch (parent.type) {
-    case "VariableDeclarator":
-      return parent.id === node;
     case "FunctionDeclaration":
     case "FunctionExpression":
     case "ArrowFunctionExpression":
@@ -74,11 +72,18 @@ export class UsageSeedExpander {
       if (node.type === "VariableDeclarator") {
         const name = findName(node.id);
         if (name !== null) {
-          candidates.push({ node, bindingNode: node.id, name });
+          candidates.push({
+            node:
+              parent?.type === "VariableDeclaration" && startPoint.start <= parent.start
+                ? parent
+                : node,
+            bindingNode: node.id,
+            name,
+          });
         }
       }
 
-      if (node.type === "VariableDeclaration") {
+      if (node.type === "VariableDeclaration" && startPoint.start <= node.start) {
         const declarator = node.declarations.find((entry) => findName(entry.id) !== null);
         const name = declarator === undefined ? null : findName(declarator.id);
         if (declarator !== undefined && name !== null) {
@@ -101,7 +106,11 @@ export class UsageSeedExpander {
               ? bindingNode.id.name
               : null;
         if (bindingNode !== undefined && name !== null) {
-          candidates.push({ node: bindingNode, bindingNode, name });
+          candidates.push({
+            node: declaration.type === "VariableDeclaration" ? declaration : bindingNode,
+            bindingNode,
+            name,
+          });
         }
       }
 

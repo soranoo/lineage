@@ -6,12 +6,10 @@ import { MagicStringEditor } from "@/edit";
 import { moduleCallKey, tryResolveModuleCall, walkAst } from "@/helpers";
 import { collectSpecifiers } from "@/helpers/module-boundary";
 import { DynamicPatternDetector, IssueCollector } from "@/issues";
-import { OxcParser } from "@/parse";
-import { IgnoreFilter, OxcResolver } from "@/resolve";
-import { VirtualAwareResolver } from "@/resolve";
 import { IntraFunctionShaker } from "@/shake";
 import { BackwardSlicer } from "@/slice";
 import { assembleSlicedOutput, isDependencyNodeKeepWorthy } from "@/tracker/sliceOutput";
+import { ProjectContext } from "@/tracker/ProjectContext";
 import type {
   AbsolutePath,
   IEditor,
@@ -28,7 +26,6 @@ import type {
   TrackResult,
   TrackerConfig,
 } from "@/types";
-import { InvalidVirtualPathError } from "@/types";
 
 /**
  * Optional dependency overrides for constructing a DependencyTracker.
@@ -54,69 +51,6 @@ type DependencyTrackerDependencies = {
  */
 const readSourceText = (absolutePath: AbsolutePath): SourceText =>
   readFileSync(absolutePath, "utf8");
-
-/**
- * Validate and materialize configured virtual files as a map.
- *
- * @param virtualFiles Optional virtual file record from tracker config.
- * @returns Map keyed by absolute virtual path.
- * @throws {InvalidVirtualPathError} When any key does not start with `/`.
- */
-const toVirtualFileMap = (
-  virtualFiles: Record<AbsolutePath, SourceText> | undefined,
-): Map<AbsolutePath, SourceText> => {
-  const map = new Map<AbsolutePath, SourceText>();
-
-  if (virtualFiles === undefined) {
-    return map;
-  }
-
-  for (const [filePath, source] of Object.entries(virtualFiles)) {
-    if (!filePath.startsWith("/")) {
-      throw new InvalidVirtualPathError(filePath);
-    }
-
-    map.set(filePath, source);
-  }
-
-  return map;
-};
-
-/**
- * Convert a virtual file map back into a plain record for resolver construction.
- *
- * @param virtualFiles Virtual file map keyed by absolute path.
- * @returns Virtual file record keyed by absolute path.
- */
-const toVirtualFileRecord = (
-  virtualFiles: ReadonlyMap<AbsolutePath, SourceText>,
-): Record<AbsolutePath, SourceText> => {
-  const record: Record<AbsolutePath, SourceText> = {};
-
-  for (const [filePath, source] of virtualFiles) {
-    record[filePath] = source;
-  }
-
-  return record;
-};
-
-/**
- * Parse and cache all configured virtual files before the first track call.
- *
- * @param parser Parser used to build parsed-file objects.
- * @param parsedCache Tracker-level parsed-file cache.
- * @param virtualFiles Virtual files to pre-populate.
- */
-const prepopulateVirtualParsedFiles = (
-  parser: IParser,
-  parsedCache: Map<AbsolutePath, ParsedFile>,
-  virtualFiles: ReadonlyMap<AbsolutePath, SourceText>,
-): void => {
-  for (const [filePath, source] of virtualFiles) {
-    const parsedFile = parser.parse(filePath, source);
-    parsedCache.set(filePath, parsedFile);
-  }
-};
 
 /**
  * Collect module specifiers declared at module scope for recursive parsing.
@@ -150,19 +84,23 @@ export class DependencyTracker {
    * @param config Tracker configuration for resolver and ignore behavior.
    * @param dependencies Optional dependency overrides used by tests.
    */
-  constructor(config: TrackerConfig = {}, dependencies: DependencyTrackerDependencies = {}) {
-    const ignoreFilter = new IgnoreFilter(config.ignorePatterns ?? []);
-    const virtualFiles = toVirtualFileMap(config.virtualFiles);
-    const oxcResolver = new OxcResolver(ignoreFilter, config.resolver);
-    const defaultResolver: IResolver =
-      virtualFiles.size > 0
-        ? new VirtualAwareResolver(toVirtualFileRecord(virtualFiles), ignoreFilter, oxcResolver)
-        : oxcResolver;
+  constructor(
+    config: TrackerConfig = {},
+    dependenciesOrContext: DependencyTrackerDependencies | ProjectContext = {},
+    context?: ProjectContext,
+  ) {
+    const dependencies =
+      dependenciesOrContext instanceof ProjectContext ? {} : dependenciesOrContext;
+    const sharedContext =
+      context ??
+      (dependenciesOrContext instanceof ProjectContext
+        ? dependenciesOrContext
+        : new ProjectContext(config, dependencies.parser, dependencies.resolver));
 
+    this.parser = sharedContext.getParser();
+    this.resolver = sharedContext.getResolver();
     this.parsedCache = new Map<AbsolutePath, ParsedFile>();
-    this.virtualFiles = virtualFiles;
-    this.parser = dependencies.parser ?? new OxcParser();
-    this.resolver = dependencies.resolver ?? defaultResolver;
+    this.virtualFiles = sharedContext.getVirtualFiles();
     this.shaker = dependencies.shaker ?? new IntraFunctionShaker();
     this.issueCollector = dependencies.issueCollector ?? new IssueCollector();
     this.dynamicPatternDetector = new DynamicPatternDetector(this.issueCollector);
@@ -178,7 +116,6 @@ export class DependencyTracker {
       this.moduleResolutionCache,
     );
 
-    prepopulateVirtualParsedFiles(this.parser, this.parsedCache, this.virtualFiles);
   }
 
   /**

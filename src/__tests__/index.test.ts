@@ -31,7 +31,13 @@ import type {
   TrackerConfig,
   TrackerIssue,
 } from "@/index";
-import { assembleSlicedOutput, DependencyTracker, offsetFromLineCol } from "@/index";
+import {
+  assembleSlicedOutput,
+  DependencyTracker,
+  offsetFromLineCol,
+  ProjectContext,
+  UsageTracker,
+} from "@/index";
 
 /**
  * Ensure key public entry types are available from the package root.
@@ -49,10 +55,14 @@ describe("package entry exports", () => {
 
     expect(runtimeExportKeys).toEqual([
       "DependencyTracker",
+      "ProjectContext",
+      "UsageTracker",
       "assembleSlicedOutput",
       "offsetFromLineCol",
     ]);
     expect(entryModule.DependencyTracker).toBe(DependencyTracker);
+    expect(entryModule.ProjectContext).toBe(ProjectContext);
+    expect(entryModule.UsageTracker).toBe(UsageTracker);
     expect(entryModule.assembleSlicedOutput).toBe(assembleSlicedOutput);
     expect(entryModule.offsetFromLineCol).toBe(offsetFromLineCol);
   });

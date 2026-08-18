@@ -498,6 +498,8 @@ src/
   types.ts                    <- all shared types; imported everywhere via @/types
   tracker/
     DependencyTracker.ts      <- backward-tracking orchestrator
+    UsageTracker.ts            <- forward-usage orchestrator
+    ProjectContext.ts          <- shared parser/resolver/index cache
     sliceOutput.ts            <- shared, opt-in sliced source assembly
   parse/
     Parser.ts                 <- IParser interface
@@ -539,6 +541,8 @@ src/__tests__/
   issues/                     <- mirrors src/issues/
   helpers/                    <- mirrors src/helpers/
   tracker/                    <- mirrors src/tracker/
+    project_context.test.ts    <- shared context cache behavior
+    usage_tracker.test.ts      <- forward tracker orchestration
     slice_output.test.ts       <- shared output assembly and merge behavior
   usage/                      <- mirrors src/usage/
     forward_slicer.test.ts

@@ -28,6 +28,8 @@ Give me a ⭐ if you like it.
 - [⚙️ How It Works](#️-how-it-works)
 - [📦 API Reference](#-api-reference)
   - [DependencyTracker](#dependencytracker)
+  - [UsageTracker](#usagetracker)
+  - [ProjectContext](#projectcontext)
   - [assembleSlicedOutput](#assembleslicedoutput)
   - [offsetFromLineCol](#offsetfromlinecol)
   - [TrackResult](#trackresult)
@@ -571,6 +573,57 @@ const result = await tracker.track(request: TrackRequest): Promise<TrackResult>
 
 > [!IMPORTANT]\
 > `StartPointNotFoundError` is thrown if the `startPoint` offset range does not correspond to any AST node in `entryFile`.
+
+---
+
+### `UsageTracker`
+
+The forward tracker reports direct reads and writes of a declaration and follows
+resolved import and re-export boundaries. It does not chase ordinary data-flow
+continuations automatically.
+
+```ts
+import { UsageTracker } from "@soranoo/lineage";
+
+const source = "export const value = 1; console.log(value);";
+const tracker = new UsageTracker({
+  virtualFiles: { "/virtual/main.ts": source },
+});
+
+const result = tracker.track({
+  entryFile: "/virtual/main.ts",
+  startPoint: { start: 7, end: 22 },
+});
+
+console.log(result.nodes); // declaration and direct usage nodes
+console.log(result.edges); // read/import/continuation relationships
+```
+
+`UsageTrackerConfig` accepts `projectRoot` or `projectFiles` to bound a real
+project index. A `virtualFiles` map is itself the project boundary for
+virtual-only tracking. `maxUsageNodes` limits forward traversal through module
+boundaries.
+
+### `ProjectContext`
+
+Pass one `ProjectContext` to both trackers when an external traversal alternates
+between backward and forward calls. The parser cache, resolver, and lazily-built
+reverse-import graph are then shared:
+
+```ts
+import { DependencyTracker, ProjectContext, UsageTracker } from "@soranoo/lineage";
+
+const config = {
+  virtualFiles: {
+    "/virtual/main.ts": "export const value = 1; console.log(value);",
+  },
+};
+const context = new ProjectContext(config);
+const backward = new DependencyTracker(config, context);
+const forward = new UsageTracker(config, context);
+```
+
+Both trackers create a private context automatically when one is not supplied.
 
 ---
 
