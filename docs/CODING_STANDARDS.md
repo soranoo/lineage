@@ -548,6 +548,9 @@ src/__tests__/
     forward_slicer.test.ts
     usage_seed_expander.test.ts
     usage_slicer.test.ts
+  project/                    <- mirrors src/project/
+    ImportGraph.test.ts
+    ProjectIndexer.test.ts
   _fakes/                     <- non-mirrored: shared hand-rolled fakes
     FakeParser.test.ts
     FakeParser.ts
@@ -564,6 +567,8 @@ src/__tests__/
     closures-conditionals/
     dynamic-patterns/
     class-async-circular/
+    usage/                    <- forward-tracking fixture families
+    usage-tracking.fixture.test.ts
     pipeline.fixture.test.ts
     slice-output.fixture.test.ts
     multi-call.fixture.test.ts
