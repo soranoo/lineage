@@ -25,6 +25,8 @@ Give me a ⭐ if you like it.
 - [📌 Knowledge Prerequisites](#-knowledge-prerequisites)
 - [✨ Features](#-features)
 - [🚀 Getting Started](#-getting-started)
+  - [Backward lineage (dependency tracking)](#backward-lineage-dependency-tracking)
+  - [Usage tracking (forward lineage)](#usage-tracking-forward-lineage)
 - [⚙️ How It Works](#️-how-it-works)
 - [📦 API Reference](#-api-reference)
   - [DependencyTracker](#dependencytracker)
@@ -83,7 +85,21 @@ npm install @soranoo/lineage
 > [!TIP]\
 > Replace `npm` with `bun`, `yarn` or `pnpm` if you prefer those package managers.
 
-### Basic usage
+### Backward lineage (dependency tracking)
+
+`DependencyTracker` answers "what influences this code?" Start from a
+statement or expression and it walks backward through the variables,
+functions, parameters, imports, and module exports that can contribute to its
+value. The result is a transitive dependency graph, making it suitable for
+understanding a value's origins or extracting the code needed to compute it.
+
+The tracker follows resolved ESM and CommonJS module boundaries, records
+ignored and unresolved dependencies as explicit leaf nodes, and reports dynamic
+patterns that prevent a precise static answer. By default, it also marks
+statements inside included functions that do not contribute to a returned value
+as `shaken`; pass `shake: false` to retain complete function bodies.
+
+#### Basic usage
 
 ```ts
 import { DependencyTracker, offsetFromLineCol } from "@soranoo/lineage";
@@ -330,7 +346,7 @@ Output - 3:
 []
 ```
 
-### With ignore patterns
+#### With ignore patterns
 
 ```ts
 const tracker = new DependencyTracker({
@@ -345,7 +361,7 @@ const tracker = new DependencyTracker({
 > [!NOTE]\
 > `node_modules` is always an implicit ignore pattern regardless of what you pass to `ignorePatterns`. You never need to add it manually.
 
-### With virtual files (no disk writes)
+#### With virtual files (no disk writes)
 
 ```ts
 import { DependencyTracker, offsetFromLineCol } from "@soranoo/lineage";
@@ -388,7 +404,7 @@ console.log(result.issues);
 > Mix is supported, virtual files and physical disk files can participate in the same trace.
 > This works in both directions: a virtual entry can import real files, and a real entry can import virtual modules.
 
-### Reusing a tracker across multiple analyses
+#### Reusing a tracker across multiple analyses
 
 ```ts
 const tracker = new DependencyTracker();
@@ -412,11 +428,57 @@ const result2 = await tracker.track({
 > [!NOTE]\
 > `output` is opt-in. When it is omitted, `result.files` is an empty `Map` and no `MagicString` output is assembled. Pass `output: { mode: "blank" }` to preserve the pre-2.0 behavior.
 
+### Usage tracking (forward lineage)
+
+`DependencyTracker` answers "what influences this code?" by walking
+backward through definitions. `UsageTracker` answers the complementary
+question: "where is this declared value used?" It reports direct reads and
+writes in the declaration's lexical scope, including nested closures, and
+follows only unambiguous export/import boundaries.
+
+When a value is assigned, passed to a function, returned, spread, or written
+to a property, the result contains an `untraced-continuation`. It describes
+the next location when one is statically knowable, but does not follow ordinary
+data flow automatically. This keeps each forward query small and lets an
+external traversal decide which continuation to inspect next.
+
+```ts
+import { UsageTracker, offsetFromLineCol } from "@soranoo/lineage";
+
+const source = [
+  "export const theme = 'light';",
+  "const selectedTheme = theme;",
+].join("\n");
+
+const tracker = new UsageTracker({
+  virtualFiles: { "/virtual/theme.ts": source },
+});
+
+const start = offsetFromLineCol(source, 1, 14);
+const result = tracker.track({
+  entryFile: "/virtual/theme.ts",
+  startPoint: { start, end: start + "theme".length },
+});
+
+console.log(result.nodes); // declaration, export boundary, and continuation
+```
+
+For real files, pass `projectRoot` or `projectFiles` to bound the reverse
+import index. A `virtualFiles` map is the project boundary for virtual-only
+tracking. As with backward tracking, output assembly is opt-in through
+`output: { mode: "blank" }` or `output: { mode: "compact" }`.
+
 ---
 
 ## ⚙️ How It Works
 
-Lineage runs five phases every time `track()` is called:
+Lineage provides two complementary analysis directions. `DependencyTracker`
+builds a transitive backward slice; `UsageTracker` reports direct forward
+usages and follows module boundaries only.
+
+### Backward dependency tracking
+
+`DependencyTracker.track()` runs five phases:
 
 ```mermaid
 flowchart TD
@@ -444,7 +506,7 @@ flowchart TD
     style H fill:transparent,stroke:transparent
 ```
 
-### Cross-file resolution
+#### Cross-file resolution
 
 When the worklist encounters an import, it resolves the specifier using [`oxc-resolver`](https://github.com/oxc-project/oxc-resolver) and checks the result against the ignore filter before recursing:
 
@@ -477,7 +539,7 @@ flowchart TD
     style EndNotFound fill:#f8d7da,stroke:#dc3545,stroke-width:2px
 ```
 
-### Output graph shape
+#### Output graph shape
 
 For a simple three-function chain (`c` calls `b`, `b` calls `a`) (See above [section](#basic-usage) for the full code), the graph Lineage produces looks like this:
 
@@ -506,6 +568,43 @@ graph LR
 
 > [!NOTE]\
 > `const result = c(5, 6)` does **not** appear in the graph. Lineage traces backward from the start point where consumers of a value are never included, only producers.
+
+### Forward usage tracking
+
+`UsageTracker.track()` resolves the selected declaration, finds its direct
+reads and writes in the owning lexical scope and nested closures, then
+classifies each reference. Reassignments, call arguments, returns, property
+writes, spreads, and invocation are terminal `untraced-continuation` nodes;
+the tracker does not chase their ordinary data flow.
+
+An export/import boundary is the exception. `UsageTracker` uses its bounded
+reverse-import index to locate importers, adds their `import-usage` nodes, and
+scans each imported alias. A visited binding key prevents re-export cycles, and
+`maxUsageNodes` limits traversal through large import fan-out.
+
+```mermaid
+flowchart TD
+  A([UsageTracker.track]) --> B[Parse entry declaration]
+  B --> C[Resolve usage seed and lexical scope]
+  C --> D[Find direct reads and writes]
+  D --> E{Reference classification}
+
+  E -->|ordinary read or write| F[Add read-reference or write-reference]
+  E -->|continuation| G[Add untraced-continuation]
+  D -->|seed binding is exported| H[Query reverse-import index]
+  H --> I[Add export-boundary and import-usage nodes]
+  I --> J[Scan each importer alias]
+
+  F --> K([UsageResult returned])
+  G --> K
+  I --> K
+  J --> K
+```
+
+`UsageResult` is deliberately shallow for ordinary data flow: callers that
+want a broader traversal can use a `continuesAt` destination as the next
+explicit query, while sharing a `ProjectContext` to reuse parser and
+reverse-import caches across both tracker directions.
 
 ---
 
