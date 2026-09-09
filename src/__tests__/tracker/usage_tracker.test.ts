@@ -2,8 +2,8 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { ProjectContext, UsageTracker } from "@/index";
 import { findRange, readFixtureSource, toFixturePath } from "@/__tests__/utils";
+import { ProjectContext, UsageTracker } from "@/index";
 import type { AbsolutePath, SourceText, UsageTrackerConfig } from "@/types";
 import { StartPointNotFoundError } from "@/types";
 
@@ -105,8 +105,10 @@ describe("UsageTracker", () => {
     const usageResult = usageTracker.track({ entryFile, startPoint });
     const dependencyResult = await dependencyTracker.track({ entryFile, startPoint });
 
-    expect(usageResult.nodes.some((node) => dependencyResult.nodes.some((other) => other.id === node.id))).toBe(
-      true,
-    );
+    expect(
+      usageResult.nodes.some((node) =>
+        dependencyResult.nodes.some((other) => other.id === node.id),
+      ),
+    ).toBe(true);
   });
 });

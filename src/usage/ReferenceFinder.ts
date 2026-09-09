@@ -45,7 +45,10 @@ export class ReferenceFinder {
     const visit = (node: AstNode, parent: AstNode | null): void => {
       if (node.type === "Identifier" && node.name === name && this.isReference(node, parent)) {
         const resolved = resolveBindingInScopes(name, node, scopes);
-        if (resolved?.binding === targetBinding && resolved.scope.node.start >= targetScope.node.start) {
+        if (
+          resolved?.binding === targetBinding &&
+          resolved.scope.node.start >= targetScope.node.start
+        ) {
           references.push({
             node,
             kind: this.referenceKind(node, parent),

@@ -58,5 +58,5 @@ for the full signature.
 - [ ] Add `output: { mode: "blank" }` to calls that consume `result.files`.
 - [ ] Keep `output` omitted for calls that only need graph nodes, edges, or issues.
 - [ ] Use `assembleSlicedOutput` when combining nodes from independent tracking
-  calls before generating source output.
+      calls before generating source output.
 - [ ] Review any code that assumes `result.files` is populated after every call.

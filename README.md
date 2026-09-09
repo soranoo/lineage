@@ -445,10 +445,7 @@ external traversal decide which continuation to inspect next.
 ```ts
 import { UsageTracker, offsetFromLineCol } from "@soranoo/lineage";
 
-const source = [
-  "export const theme = 'light';",
-  "const selectedTheme = theme;",
-].join("\n");
+const source = ["export const theme = 'light';", "const selectedTheme = theme;"].join("\n");
 
 const tracker = new UsageTracker({
   virtualFiles: { "/virtual/theme.ts": source },

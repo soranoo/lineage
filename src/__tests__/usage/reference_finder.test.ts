@@ -2,14 +2,16 @@ import { describe, expect, it } from "vitest";
 
 import { findNode, parseSource } from "@/__tests__/utils";
 import { walkAst } from "@/helpers";
-import { ReferenceFinder } from "@/usage/ReferenceFinder";
 import type { AstNode, ParsedFile, SourceText } from "@/types";
+import { ReferenceFinder } from "@/usage/ReferenceFinder";
 
 const findFunction = (parsedFile: ParsedFile, name: SourceText): AstNode =>
   findNode(
     parsedFile.ast,
     (node): node is AstNode & { type: "FunctionDeclaration" } =>
-      node.type === "FunctionDeclaration" && node.id?.type === "Identifier" && node.id.name === name,
+      node.type === "FunctionDeclaration" &&
+      node.id?.type === "Identifier" &&
+      node.id.name === name,
     `Function not found: ${name}`,
   );
 
@@ -17,7 +19,9 @@ const findParameterFunction = (parsedFile: ParsedFile): AstNode =>
   findNode(
     parsedFile.ast,
     (node): node is AstNode & { type: "FunctionDeclaration" } =>
-      node.type === "FunctionDeclaration" && node.id?.type === "Identifier" && node.id.name === "run",
+      node.type === "FunctionDeclaration" &&
+      node.id?.type === "Identifier" &&
+      node.id.name === "run",
     "Function not found: run",
   );
 
@@ -58,11 +62,9 @@ describe("ReferenceFinder", () => {
 
     expect(references).toHaveLength(3);
     expect(references.some((reference) => reference.insideClosure)).toBe(true);
-    expect(references.map((reference) => source.slice(reference.node.start, reference.node.end))).toEqual([
-      "x",
-      "x",
-      "x",
-    ]);
+    expect(
+      references.map((reference) => source.slice(reference.node.start, reference.node.end)),
+    ).toEqual(["x", "x", "x"]);
   });
 
   it("never returns the declaration site", () => {
@@ -115,7 +117,9 @@ describe("ReferenceFinder", () => {
   });
 
   it("does not mistake identifiers in property keys for references", () => {
-    const parsedFile = parseSource("function run() { const x = 1; const object = { x, x: 2 }; return object.x; }");
+    const parsedFile = parseSource(
+      "function run() { const x = 1; const object = { x, x: 2 }; return object.x; }",
+    );
     const functionNode = findFunctionBody(parsedFile, "run");
     const identifiers: SourceText[] = [];
 

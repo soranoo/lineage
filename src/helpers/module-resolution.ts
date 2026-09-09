@@ -6,7 +6,6 @@ import type {
   LiteralValue,
   ModuleResolutionPlugin,
   ModuleResolutionResult,
-  ModuleSpecifier,
   SourceText,
 } from "@/types";
 

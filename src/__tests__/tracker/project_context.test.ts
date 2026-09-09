@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { DependencyTracker, ProjectContext, UsageTracker } from "@/index";
 import { findRange } from "@/__tests__/utils";
+import { DependencyTracker, ProjectContext, UsageTracker } from "@/index";
 import type { AbsolutePath, SourceText, UsageTrackerConfig } from "@/types";
 
 const entryFile: AbsolutePath = "/virtual/entry.ts";

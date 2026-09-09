@@ -2,10 +2,9 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import type { AbsolutePath, OffsetRange, SourceText, UsageNode } from "@/types";
-
 import { findRange, readFixtureSource, toFixturePath } from "@/__tests__/utils";
 import { DependencyTracker, UsageTracker } from "@/index";
+import type { AbsolutePath, OffsetRange, SourceText, UsageNode } from "@/types";
 
 const createFixtureTracker = (relativeEntryFile: SourceText): UsageTracker =>
   new UsageTracker({
@@ -29,12 +28,16 @@ describe("UsageTracker fixture integration", () => {
     const importFileNames = readNodes(result.nodes, "import-usage").map((node) =>
       path.basename(node.file),
     );
-    expect(importFileNames).toEqual(
-      expect.arrayContaining(["b.ts", "c.ts", "one.ts", "two.ts"]),
-    );
-    expect(result.nodes.some((node) => path.basename(node.file) === "one.ts" && node.label === "first")).toBe(true);
-    expect(result.nodes.some((node) => path.basename(node.file) === "two.ts" && node.label === "second")).toBe(true);
-    expect(result.nodes.some((node) => path.basename(node.file) === "c.ts" && node.label === "x")).toBe(true);
+    expect(importFileNames).toEqual(expect.arrayContaining(["b.ts", "c.ts", "one.ts", "two.ts"]));
+    expect(
+      result.nodes.some((node) => path.basename(node.file) === "one.ts" && node.label === "first"),
+    ).toBe(true);
+    expect(
+      result.nodes.some((node) => path.basename(node.file) === "two.ts" && node.label === "second"),
+    ).toBe(true);
+    expect(
+      result.nodes.some((node) => path.basename(node.file) === "c.ts" && node.label === "x"),
+    ).toBe(true);
   });
 
   it("reports a callback capture as an ordinary read reference", () => {
@@ -59,16 +62,25 @@ describe("UsageTracker fixture integration", () => {
 
     const aResult = tracker.track({ entryFile, startPoint: findRange(source, "let a = 1") });
     const optionsResult = tracker.track({ entryFile, startPoint: findRange(source, "options") });
-    const bResult = tracker.track({ entryFile, startPoint: findRange(source, "const b = options") });
+    const bResult = tracker.track({
+      entryFile,
+      startPoint: findRange(source, "const b = options"),
+    });
 
     expect(readNodes(aResult.nodes, "untraced-continuation")).toEqual([
-      expect.objectContaining({ continuation: expect.objectContaining({ reason: "call-argument" }) }),
+      expect.objectContaining({
+        continuation: expect.objectContaining({ reason: "call-argument" }),
+      }),
     ]);
     expect(readNodes(optionsResult.nodes, "untraced-continuation")).toEqual([
-      expect.objectContaining({ continuation: expect.objectContaining({ reason: "reassignment" }) }),
+      expect.objectContaining({
+        continuation: expect.objectContaining({ reason: "reassignment" }),
+      }),
     ]);
     expect(readNodes(bResult.nodes, "untraced-continuation")).toEqual([
-      expect.objectContaining({ continuation: expect.objectContaining({ reason: "return-value" }) }),
+      expect.objectContaining({
+        continuation: expect.objectContaining({ reason: "return-value" }),
+      }),
     ]);
     expect(aResult.nodes).toHaveLength(3);
     expect(optionsResult.nodes).toHaveLength(2);
@@ -87,8 +99,12 @@ describe("UsageTracker fixture integration", () => {
     expect(result.nodes).toHaveLength(4);
     expect(readNodes(result.nodes, "untraced-continuation")).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ continuation: expect.objectContaining({ reason: "call-argument" }) }),
-        expect.objectContaining({ continuation: expect.objectContaining({ reason: "reassignment" }) }),
+        expect.objectContaining({
+          continuation: expect.objectContaining({ reason: "call-argument" }),
+        }),
+        expect.objectContaining({
+          continuation: expect.objectContaining({ reason: "reassignment" }),
+        }),
       ]),
     );
   });
@@ -164,7 +180,9 @@ describe("UsageTracker fixture integration", () => {
       entryFile,
       startPoint: finalCallRange,
     });
-    const cDeclaration = dependencyResult.nodes.find((node) => node.label.startsWith("function c("));
+    const cDeclaration = dependencyResult.nodes.find((node) =>
+      node.label.startsWith("function c("),
+    );
 
     expect(cDeclaration).toBeDefined();
 

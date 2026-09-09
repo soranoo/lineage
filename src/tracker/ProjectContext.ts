@@ -3,12 +3,7 @@ import type { IParser } from "@/parse";
 import { ImportGraph, ProjectIndexer } from "@/project";
 import { IgnoreFilter, OxcResolver, ProjectFileScanner, VirtualAwareResolver } from "@/resolve";
 import type { IResolver } from "@/resolve";
-import type {
-  AbsolutePath,
-  SourceText,
-  TrackerConfig,
-  UsageTrackerConfig,
-} from "@/types";
+import type { AbsolutePath, SourceText, TrackerConfig, UsageTrackerConfig } from "@/types";
 import { InvalidVirtualPathError } from "@/types";
 
 const toVirtualFileMap = (
@@ -56,7 +51,11 @@ export class ProjectContext {
     const oxcResolver = new OxcResolver(ignoreFilter, config.resolver);
     const defaultResolver: IResolver =
       this.virtualFiles.size > 0
-        ? new VirtualAwareResolver(toVirtualFileRecord(this.virtualFiles), ignoreFilter, oxcResolver)
+        ? new VirtualAwareResolver(
+            toVirtualFileRecord(this.virtualFiles),
+            ignoreFilter,
+            oxcResolver,
+          )
         : oxcResolver;
 
     this.resolver = resolver ?? defaultResolver;

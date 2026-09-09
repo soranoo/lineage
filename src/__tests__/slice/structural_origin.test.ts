@@ -1,10 +1,11 @@
 import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
-import { buildParsedFiles, findNode, toFixturePath, toRange } from "@/__tests__/utils";
 import { FakeParser } from "@/__tests__/_fakes/FakeParser";
 import { FakeResolver } from "@/__tests__/_fakes/FakeResolver";
 import { FakeShaker } from "@/__tests__/_fakes/FakeShaker";
+import { buildParsedFiles, findNode, toFixturePath, toRange } from "@/__tests__/utils";
 import { walkAst } from "@/helpers";
 import { IssueCollector } from "@/issues";
 import { BackwardSlicer } from "@/slice";
@@ -61,28 +62,16 @@ const expectStructuralOrigin = (
 
 describe("BackwardSlicer structural origins", () => {
   it("finds origins through nested object and array literals", () => {
-    expectStructuralOrigin(
-      track("const e = { modules: { 2029: (n) => { return n; } } };"),
-      "e",
-    );
+    expectStructuralOrigin(track("const e = { modules: { 2029: (n) => { return n; } } };"), "e");
     expectStructuralOrigin(track("const handlers = [(n) => { return n; }];"), "handlers");
   });
 
   it("finds variable, assignment, class-method, and export origins", () => {
     expectStructuralOrigin(track("const factory = (n) => { return n; };"), "factory");
-    expectStructuralOrigin(
-      track("const table = { save: function (n) { return n; } };") ,
-      "table",
-    );
+    expectStructuralOrigin(track("const table = { save: function (n) { return n; } };"), "table");
     expectStructuralOrigin(track("let factory; factory = (n) => { return n; };"), "factory");
-    expectStructuralOrigin(
-      track("class Widget { render(n) { return n; } }"),
-      "render(n)",
-    );
-    expectStructuralOrigin(
-      track("export default function (n) { return n; }"),
-      "export default",
-    );
+    expectStructuralOrigin(track("class Widget { render(n) { return n; } }"), "render(n)");
+    expectStructuralOrigin(track("export default function (n) { return n; }"), "export default");
   });
 
   it("walks through TypeScript assertion wrappers", () => {
@@ -115,9 +104,7 @@ describe("BackwardSlicer structural origins", () => {
   });
 
   it("stops at an unnamed merge argument and does not duplicate IIFE edges", () => {
-    const merged = track(
-      "const merged = Object.assign({}, { save: (n) => { return n; } });",
-    );
+    const merged = track("const merged = Object.assign({}, { save: (n) => { return n; } });");
     expectStructuralOrigin(merged, "{ save: (n)");
 
     const iife = track("((n) => { return n; })(1);");
@@ -125,9 +112,7 @@ describe("BackwardSlicer structural origins", () => {
   });
 
   it("keeps the fallback to one structural hop", () => {
-    const result = track(
-      "const factory = (n) => { return n; }; const table = { save: factory };",
-    );
+    const result = track("const factory = (n) => { return n; }; const table = { save: factory };");
     expectStructuralOrigin(result, "factory");
     expect(result.edges.filter((edge) => edge.kind === "structural-origin")).toHaveLength(1);
   });

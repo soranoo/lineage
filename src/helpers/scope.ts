@@ -86,8 +86,7 @@ const registerBindings = (node: AstNode, scopeStack: Scope[]): void => {
       }
       return;
     case "ImportDeclaration": {
-      const programScope =
-        scopeStack.find((scope) => scope.kind === "program") ?? currentScope;
+      const programScope = scopeStack.find((scope) => scope.kind === "program") ?? currentScope;
 
       for (const specifier of node.specifiers) {
         switch (specifier.type) {

@@ -1,12 +1,10 @@
 import { assertNever } from "assert-never";
 
-import { collectExports } from "@/helpers/module-boundary";
 import { walkAst } from "@/helpers";
+import { collectExports } from "@/helpers/module-boundary";
 import { buildScopes, resolveBindingInScopes } from "@/helpers/scope";
-import { ReferenceFinder } from "@/usage/ReferenceFinder";
-import { UsageSeedExpander } from "@/usage/UsageSeedExpander";
-import type { IProjectIndex } from "@/project";
 import type { IParser } from "@/parse";
+import type { IProjectIndex } from "@/project";
 import type {
   AbsolutePath,
   AstNode,
@@ -26,6 +24,8 @@ import type {
   UsageSliceResult,
 } from "@/types";
 import { StartPointNotFoundError } from "@/types";
+import { ReferenceFinder } from "@/usage/ReferenceFinder";
+import { UsageSeedExpander } from "@/usage/UsageSeedExpander";
 import type { IUsageSlicer } from "@/usage/UsageSlicer";
 
 const DEFAULT_USAGE_NODE_LIMIT: UsageNodeLimit = 10_000;
@@ -101,7 +101,11 @@ const findFunctionForBinding = (binding: AstNode): AstNode | null => {
 const findPatternBinding = (pattern: AstNode, name?: SourceText): AstNode | null => {
   let result: AstNode | null = null;
   walkAst(pattern, (node, parent) => {
-    if (result !== null || node.type !== "Identifier" || (name !== undefined && node.name !== name)) {
+    if (
+      result !== null ||
+      node.type !== "Identifier" ||
+      (name !== undefined && node.name !== name)
+    ) {
       return;
     }
 
@@ -212,7 +216,11 @@ export class ForwardSlicer implements IUsageSlicer {
       return usageNode;
     };
 
-    const addEdge = (from: UsageNode, to: UsageNode, kind: "read" | "import" | "continuation"): void => {
+    const addEdge = (
+      from: UsageNode,
+      to: UsageNode,
+      kind: "read" | "import" | "continuation",
+    ): void => {
       if (!edges.some((edge) => edge.from === from.id && edge.to === to.id && edge.kind === kind)) {
         edges.push({ from: from.id, to: to.id, kind });
       }
@@ -267,15 +275,7 @@ export class ForwardSlicer implements IUsageSlicer {
         })();
 
       if (anchorNode !== null) {
-        this.enqueueImporters(
-          seed,
-          parsed,
-          anchorNode,
-          parsedFiles,
-          queue,
-          addNode,
-          addEdge,
-        );
+        this.enqueueImporters(seed, parsed, anchorNode, parsedFiles, queue, addNode, addEdge);
       }
     }
 
@@ -299,9 +299,17 @@ export class ForwardSlicer implements IUsageSlicer {
     const parent = parents.get(reference.node) ?? null;
     switch (reference.parentContext) {
       case "declarator":
-        return this.continuationResult("reassignment", false, this.findDeclaratorDestination(parent, parsedFile));
+        return this.continuationResult(
+          "reassignment",
+          false,
+          this.findDeclaratorDestination(parent, parsedFile),
+        );
       case "destructure":
-        return this.continuationResult("destructure", false, this.findDeclaratorDestination(parent, parsedFile));
+        return this.continuationResult(
+          "destructure",
+          false,
+          this.findDeclaratorDestination(parent, parsedFile),
+        );
       case "call-argument":
         if (parent !== null && isConsoleCall(parent)) {
           return { kind: "read-reference" };
@@ -400,7 +408,11 @@ export class ForwardSlicer implements IUsageSlicer {
       return undefined;
     }
 
-    return { file: parsedFile.absolutePath, range: toRange(binding), label: parsedFile.source.slice(binding.start, binding.end) };
+    return {
+      file: parsedFile.absolutePath,
+      range: toRange(binding),
+      label: parsedFile.source.slice(binding.start, binding.end),
+    };
   };
 
   /** Find the local function parameter receiving a call argument. */
@@ -470,7 +482,9 @@ export class ForwardSlicer implements IUsageSlicer {
     ) => UsageNode | null,
     addEdge: (from: UsageNode, to: UsageNode, kind: "read" | "import" | "continuation") => void,
   ): void => {
-    const exported = collectExports(parsedFile.ast).find((binding) => binding.localName === seed.name);
+    const exported = collectExports(parsedFile.ast).find(
+      (binding) => binding.localName === seed.name,
+    );
     if (exported === undefined) {
       return;
     }
@@ -486,7 +500,10 @@ export class ForwardSlicer implements IUsageSlicer {
     }
     addEdge(sourceNode, boundaryNode, "continuation");
 
-    for (const importer of this.projectIndex.findImporters(parsedFile.absolutePath, exported.exportedName)) {
+    for (const importer of this.projectIndex.findImporters(
+      parsedFile.absolutePath,
+      exported.exportedName,
+    )) {
       const importerFile = this.getParsedFile(importer.importerFile, parsedFiles);
       if (importerFile === null) {
         continue;
@@ -505,7 +522,11 @@ export class ForwardSlicer implements IUsageSlicer {
 
       if (importInfo.bindingNode !== null) {
         queue.push({
-          seed: this.seedExpander.fromBinding(importerFile, importer.localAlias, importInfo.bindingNode),
+          seed: this.seedExpander.fromBinding(
+            importerFile,
+            importer.localAlias,
+            importInfo.bindingNode,
+          ),
           addStart: false,
         });
       }
@@ -591,11 +612,7 @@ export class ForwardSlicer implements IUsageSlicer {
     this.referenceFinderScopes(parsedFile);
 
   /** Resolve a name from the shared lexical scope list. */
-  private readonly resolveName = (
-    name: SourceText,
-    node: AstNode,
-    scopes: Scope[],
-  ) => {
+  private readonly resolveName = (name: SourceText, node: AstNode, scopes: Scope[]) => {
     const candidates = scopes
       .filter((scope) => scope.node.start <= node.start && scope.node.end >= node.end)
       .sort((left, right) => left.node.end - left.node.start - (right.node.end - right.node.start));

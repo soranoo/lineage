@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import { findNode, parseSource, toRange } from "@/__tests__/utils";
-import { UsageSeedExpander } from "@/usage/UsageSeedExpander";
 import { StartPointNotFoundError } from "@/types";
 import type { AstNode, SourceText } from "@/types";
+import { UsageSeedExpander } from "@/usage/UsageSeedExpander";
 
 const findNamedNode = (root: AstNode, name: SourceText): AstNode =>
   findNode(
@@ -16,9 +16,7 @@ const findVariableDeclarator = (root: AstNode, name: SourceText): AstNode =>
   findNode(
     root,
     (node) =>
-      node.type === "VariableDeclarator" &&
-      node.id.type === "Identifier" &&
-      node.id.name === name,
+      node.type === "VariableDeclarator" && node.id.type === "Identifier" && node.id.name === name,
     `Variable declarator not found: ${name}`,
   );
 
@@ -38,7 +36,11 @@ describe("UsageSeedExpander", () => {
 
   it("uses the containing scope for a function declaration", () => {
     const parsedFile = parseSource("function run() { return run(); }");
-    const declaration = findNode(parsedFile.ast, (node) => node.type === "FunctionDeclaration", "run");
+    const declaration = findNode(
+      parsedFile.ast,
+      (node) => node.type === "FunctionDeclaration",
+      "run",
+    );
 
     const seed = expander.expand(parsedFile, toRange(declaration));
 
@@ -59,7 +61,9 @@ describe("UsageSeedExpander", () => {
   });
 
   it("scopes an import seed to the importing program", () => {
-    const parsedFile = parseSource("import { value as alias } from './source'; console.log(alias);");
+    const parsedFile = parseSource(
+      "import { value as alias } from './source'; console.log(alias);",
+    );
     const alias = findNamedNode(parsedFile.ast, "alias");
 
     const seed = expander.expand(parsedFile, toRange(alias));

@@ -24,6 +24,5 @@ export class FakeProjectIndex implements IProjectIndex {
   readonly findImporters = (
     sourceFile: AbsolutePath,
     exportedName: ExportedName,
-  ): ImporterEntry[] =>
-    [...(this.entries.get(`${sourceFile}:${exportedName}`) ?? [])];
+  ): ImporterEntry[] => [...(this.entries.get(`${sourceFile}:${exportedName}`) ?? [])];
 }

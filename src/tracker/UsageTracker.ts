@@ -1,9 +1,8 @@
 import { readFileSync } from "node:fs";
 
 import { MagicStringEditor } from "@/edit";
-import { assembleSlicedOutput } from "@/tracker/sliceOutput";
 import { ProjectContext } from "@/tracker/ProjectContext";
-import { ForwardSlicer } from "@/usage/ForwardSlicer";
+import { assembleSlicedOutput } from "@/tracker/sliceOutput";
 import type {
   AbsolutePath,
   IEditor,
@@ -15,6 +14,7 @@ import type {
   UsageResult,
   UsageTrackerConfig,
 } from "@/types";
+import { ForwardSlicer } from "@/usage/ForwardSlicer";
 
 /** Orchestrates forward usage tracking, project indexing, and optional output. */
 export class UsageTracker {
@@ -72,9 +72,7 @@ export class UsageTracker {
   };
 
   /** Parse the entry when it was outside the indexer's configured file set. */
-  private readonly ensureEntryParsed = (
-    entryFile: AbsolutePath,
-  ): Map<AbsolutePath, ParsedFile> => {
+  private readonly ensureEntryParsed = (entryFile: AbsolutePath): Map<AbsolutePath, ParsedFile> => {
     const parsedFiles = this.parser.getCache();
 
     if (!parsedFiles.has(entryFile)) {

@@ -8,8 +8,8 @@ import { collectSpecifiers } from "@/helpers/module-boundary";
 import { DynamicPatternDetector, IssueCollector } from "@/issues";
 import { IntraFunctionShaker } from "@/shake";
 import { BackwardSlicer } from "@/slice";
-import { assembleSlicedOutput, isDependencyNodeKeepWorthy } from "@/tracker/sliceOutput";
 import { ProjectContext } from "@/tracker/ProjectContext";
+import { assembleSlicedOutput, isDependencyNodeKeepWorthy } from "@/tracker/sliceOutput";
 import type {
   AbsolutePath,
   IEditor,
@@ -115,7 +115,6 @@ export class DependencyTracker {
       this.moduleResolutionPlugins,
       this.moduleResolutionCache,
     );
-
   }
 
   /**

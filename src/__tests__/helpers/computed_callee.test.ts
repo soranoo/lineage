@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { walkAst } from "@/helpers";
 import { DynamicPatternDetector, IssueCollector } from "@/issues";
-import { BindingResolver } from "@/slice/BindingResolver";
 import { OxcParser } from "@/parse";
+import { BindingResolver } from "@/slice/BindingResolver";
 import type { AbsolutePath, AstNode, ParsedFile, SourceText } from "@/types";
 
 const file: AbsolutePath = "/project/src/entry.ts";
@@ -47,7 +47,9 @@ describe("computed callee resolution", () => {
     const member = findComputedMember(parsed);
 
     expect(resolver.resolveStaticPropertyKeys(member, member, parsed)).toEqual(["greet"]);
-    expect(detectIssues(parsed).filter((issue) => issue.kind === "computed-property")).toHaveLength(0);
+    expect(detectIssues(parsed).filter((issue) => issue.kind === "computed-property")).toHaveLength(
+      0,
+    );
   });
 
   it("resolves a parameter key from its literal call site", () => {
@@ -58,7 +60,9 @@ describe("computed callee resolution", () => {
     const member = findComputedMember(parsed);
 
     expect(resolver.resolveStaticPropertyKeys(member, member, parsed)).toEqual(["greet"]);
-    expect(detectIssues(parsed).filter((issue) => issue.kind === "computed-property")).toHaveLength(0);
+    expect(detectIssues(parsed).filter((issue) => issue.kind === "computed-property")).toHaveLength(
+      0,
+    );
   });
 
   it("explores every statically known literal call-site key", () => {
@@ -69,7 +73,9 @@ describe("computed callee resolution", () => {
     const member = findComputedMember(parsed);
 
     expect(resolver.resolveStaticPropertyKeys(member, member, parsed)).toEqual(["greet", "bye"]);
-    expect(detectIssues(parsed).filter((issue) => issue.kind === "computed-property")).toHaveLength(0);
+    expect(detectIssues(parsed).filter((issue) => issue.kind === "computed-property")).toHaveLength(
+      0,
+    );
   });
 
   it("falls back to computed-property for an unknown key", () => {
@@ -80,7 +86,9 @@ describe("computed callee resolution", () => {
     const member = findComputedMember(parsed);
 
     expect(resolver.resolveStaticPropertyKeys(member, member, parsed)).toEqual([]);
-    expect(detectIssues(parsed).filter((issue) => issue.kind === "computed-property")).toHaveLength(1);
+    expect(detectIssues(parsed).filter((issue) => issue.kind === "computed-property")).toHaveLength(
+      1,
+    );
   });
 
   it("resolves a template literal without interpolation", () => {
@@ -89,6 +97,8 @@ describe("computed callee resolution", () => {
     const member = findComputedMember(parsed);
 
     expect(resolver.resolveStaticPropertyKeys(member, member, parsed)).toEqual(["greet"]);
-    expect(detectIssues(parsed).filter((issue) => issue.kind === "computed-property")).toHaveLength(0);
+    expect(detectIssues(parsed).filter((issue) => issue.kind === "computed-property")).toHaveLength(
+      0,
+    );
   });
 });

@@ -3,7 +3,6 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { OxcParser } from "@/parse/OxcParser";
-import { ImportGraph } from "@/project/ImportGraph";
 import { ProjectIndexer } from "@/project/ProjectIndexer";
 import { IgnoreFilter } from "@/resolve/IgnoreFilter";
 import { OxcResolver } from "@/resolve/OxcResolver";
