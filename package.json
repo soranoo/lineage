@@ -34,7 +34,7 @@
     "neverthrow": "^8.2.0",
     "oxc-parser": "^0.131.0",
     "oxc-resolver": "^11.23.0",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.11"
   },
   "devDependencies": {
     "@oxc-project/types": "^0.131.0",
