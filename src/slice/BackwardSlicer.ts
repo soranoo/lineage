@@ -198,6 +198,7 @@ const isSeedNode = (node: AstNode): node is SeedNode =>
   node.type === "ReturnStatement" ||
   node.type === "VariableDeclaration" ||
   node.type === "ExpressionStatement" ||
+  node.type === "FunctionDeclaration" ||
   node.type === "IfStatement" ||
   node.type === "SwitchStatement" ||
   node.type === "WhileStatement" ||
@@ -2145,9 +2146,13 @@ export class BackwardSlicer {
     }
 
     const seedNames = new Set(this.seedExpander.expand(seedNode, subExprRange));
-    const seedDependencies = collectIdentifierDependencies(seedNode, subExprRange, true).filter(
-      (dep) => seedNames.has(dep.name),
-    );
+    const seedDependencyRoot =
+      seedNode.type === "FunctionDeclaration" && seedNode.body !== null ? seedNode.body : seedNode;
+    const seedDependencies = collectIdentifierDependencies(
+      seedDependencyRoot,
+      subExprRange,
+      true,
+    ).filter((dep) => seedNames.has(dep.name));
 
     for (const dependency of seedDependencies) {
       worklist.push(buildWorkItem(dependency, startNode.id, entryFile, seedNode, false));

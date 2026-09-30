@@ -8,7 +8,9 @@ import type {
   AbsolutePath,
   AstNode,
   DependencyNode,
+  ObjectTableSelection,
   OffsetRange,
+  OutputRangePlan,
   OutputKeepNodePredicate,
   OutputMode,
   ParsedFile,
@@ -133,6 +135,106 @@ const expandRangeToBoundary = (ast: AstNode, range: OffsetRange): OffsetRange =>
 };
 
 /**
+ * Find the outermost directly assigned object table containing a nested selection.
+ *
+ * @param ast AST root to search.
+ * @param range Selected source range.
+ * @returns The table and selected property, when one exists.
+ */
+const findAssignedTableProperty = (
+  ast: AstNode,
+  range: OffsetRange,
+): ObjectTableSelection | null => {
+  let match: ObjectTableSelection | null = null;
+
+  walkAst(ast, (node, parent) => {
+    if (
+      node.type !== "ObjectExpression" ||
+      !containsRange(node, range) ||
+      !(
+        (parent?.type === "AssignmentExpression" && parent.right === node) ||
+        (parent?.type === "VariableDeclarator" && parent.init === node)
+      )
+    ) {
+      return;
+    }
+
+    const property = node.properties.find((candidate) => containsRange(candidate, range));
+    if (
+      property !== undefined &&
+      (match === null || node.end - node.start > match.table.end - match.table.start)
+    ) {
+      match = { table: node, property };
+    }
+  });
+
+  return match;
+};
+
+/**
+ * Check that removing unselected entries cannot discard computed or spread side effects.
+ *
+ * @param table Object expression to inspect.
+ * @returns True when every entry has a static property key.
+ */
+const isPrunableTable = (table: AstNode): boolean =>
+  table.type === "ObjectExpression" &&
+  table.properties.every((property) => property.type === "Property" && !property.computed);
+
+/**
+ * Find unselected property runs, including their separating commas.
+ *
+ * @param table Object expression whose properties may be pruned.
+ * @param selected Properties that must remain.
+ * @returns Source ranges the editor should omit.
+ */
+const getTablePropertyOmitRanges = (
+  table: AstNode,
+  selected: ReadonlySet<AstNode>,
+): OffsetRange[] => {
+  if (table.type !== "ObjectExpression") {
+    return [];
+  }
+
+  const ranges: OffsetRange[] = [];
+  const properties = table.properties;
+  let index = 0;
+  while (index < properties.length) {
+    const current = properties[index];
+    if (current === undefined) {
+      break;
+    }
+    if (selected.has(current)) {
+      index++;
+      continue;
+    }
+
+    const first = index;
+    while (index < properties.length) {
+      const candidate = properties[index];
+      if (candidate === undefined || selected.has(candidate)) {
+        break;
+      }
+      index++;
+    }
+    const previous = properties[first - 1];
+    const firstProperty = properties[first];
+    const next = properties[index];
+    const last = properties[index - 1];
+    if (last === undefined || firstProperty === undefined) {
+      continue;
+    }
+    const start = next === undefined && previous !== undefined ? previous.end : firstProperty.start;
+    const end = next?.start ?? last.end;
+    if (start < end) {
+      ranges.push({ start, end });
+    }
+  }
+
+  return ranges;
+};
+
+/**
  * Find the smallest enclosing function's output boundary for a range.
  *
  * @param ast AST root to inspect.
@@ -191,22 +293,50 @@ export const isDependencyNodeKeepWorthy = (node: DependencyNode): boolean => {
  * @param parsedFile Parsed source file used for boundary expansion.
  * @param shouldKeepNode Predicate selecting output-worthy nodes.
  * @param keepEnclosingFunctions Whether touched function bodies should remain intact.
- * @returns Keep ranges used by the editor.
+ * @returns Kept ranges, selected table entries, and any loss of output precision.
  */
 const toOutputKeepRanges = <TNode extends SliceOutputNode>(
   nodes: readonly TNode[],
   parsedFile: ParsedFile,
   shouldKeepNode: OutputKeepNodePredicate<TNode>,
   keepEnclosingFunctions: boolean,
-): Set<OffsetRange> => {
+): OutputRangePlan => {
   const ranges: OffsetRange[] = [];
+  const wholeRanges: OffsetRange[] = [];
+  const tables = new Map<AstNode, Set<AstNode>>();
+  const precisionLosses: OffsetRange[] = [];
 
   for (const node of nodes) {
     if (!shouldKeepNode(node)) {
       continue;
     }
 
-    ranges.push(expandRangeToBoundary(parsedFile.ast, node.range));
+    const tableSelection = findAssignedTableProperty(parsedFile.ast, node.range);
+    if (tableSelection !== null) {
+      // Keep the assignment's statement boundary so pruning entries does not
+      // leave behind an isolated function or broken object literal.
+      const boundary = expandRangeToBoundary(parsedFile.ast, tableSelection.table);
+      ranges.push(boundary);
+      if (isPrunableTable(tableSelection.table)) {
+        // Several selected nodes can belong to different entries of one table;
+        // collect them all before removing any sibling entries.
+        const selected = tables.get(tableSelection.table) ?? new Set<AstNode>();
+        selected.add(tableSelection.property);
+        tables.set(tableSelection.table, selected);
+      } else if (
+        !precisionLosses.some((loss) => loss.start === boundary.start && loss.end === boundary.end)
+      ) {
+        // Computed keys and spreads can run code while the object is built;
+        // retain the statement and expose the loss of output precision.
+        precisionLosses.push(boundary);
+      }
+    } else {
+      // A selected range outside a table entry may require its entire statement.
+      // Remember that boundary so sibling pruning cannot erase selected code.
+      const boundary = expandRangeToBoundary(parsedFile.ast, node.range);
+      ranges.push(boundary);
+      wholeRanges.push(boundary);
+    }
 
     if (keepEnclosingFunctions) {
       const functionBoundary = findEnclosingFunctionBoundary(parsedFile.ast, node.range);
@@ -217,7 +347,20 @@ const toOutputKeepRanges = <TNode extends SliceOutputNode>(
     }
   }
 
-  return buildKeepRangeSet(ranges);
+  for (const table of tables.keys()) {
+    // A whole-statement selection takes precedence over entry-level pruning.
+    if (wholeRanges.some((range) => range.start <= table.start && range.end >= table.end)) {
+      tables.delete(table);
+      const boundary = expandRangeToBoundary(parsedFile.ast, table);
+      if (
+        !precisionLosses.some((loss) => loss.start === boundary.start && loss.end === boundary.end)
+      ) {
+        precisionLosses.push(boundary);
+      }
+    }
+  }
+
+  return { keepRanges: buildKeepRangeSet(ranges), tables, precisionLosses };
 };
 
 /**
@@ -264,19 +407,26 @@ export const assembleSlicedOutput = <TNode extends SliceOutputNode>(
       continue;
     }
 
-    const keepRanges = toOutputKeepRanges(
+    const { keepRanges, tables, precisionLosses } = toOutputKeepRanges(
       fileNodes,
       parsedFile,
       shouldKeepNode,
       keepEnclosingFunctions,
     );
     const ms = new MagicString(parsedFile.source);
-    editor.apply(ms, parsedFile.source, keepRanges, mode);
+    const omitRanges = new Set<OffsetRange>();
+    for (const [table, selected] of tables) {
+      for (const range of getTablePropertyOmitRanges(table, selected)) {
+        omitRanges.add(range);
+      }
+    }
+    editor.apply(ms, parsedFile.source, keepRanges, mode, omitRanges);
 
     files.set(file, {
       path: file,
       ms,
       originalSource: parsedFile.source,
+      precisionLosses,
     });
   }
 

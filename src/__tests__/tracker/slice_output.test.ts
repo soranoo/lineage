@@ -126,4 +126,113 @@ describe("assembleSlicedOutput", () => {
 
     expect(result.files).toEqual(new Map());
   });
+
+  it("keeps a selected nested function as the backward start point", async () => {
+    const source = [
+      "(() => {",
+      "  var bundle = {};",
+      "  bundle.modules = {",
+      "    1: (module, exports, require) => {",
+      "      function selected() { return require(2); }",
+      "      exports.selected = selected;",
+      "    },",
+      "    2: () => { const unrelated = 3; },",
+      "  };",
+      "})();",
+    ].join("\n");
+    const startPoint = findRange(source, "function selected() { return require(2); }");
+    const tracker = new DependencyTracker({ virtualFiles: { [entryFile]: source } });
+
+    const result = await tracker.track({ entryFile, startPoint });
+
+    expect(result.nodes.find((node) => node.kind === "start-point")?.range).toEqual(startPoint);
+  });
+
+  it.each(["blank", "compact"] as const)(
+    "omits unrelated module properties in %s output while retaining valid syntax",
+    async (mode) => {
+      const source = [
+        "(() => {",
+        "  var bundle = {};",
+        "  bundle.modules = {",
+        "    1: (module, exports, require) => {",
+        "      function selected() { return 1; }",
+        "      exports.selected = selected;",
+        "    },",
+        "    2: () => { const unrelated = 3; },",
+        "  };",
+        "})();",
+      ].join("\n");
+      const parsedFiles = parseSources([{ file: entryFile, source }]);
+      const nodes = [
+        dependencyNode(entryFile, source, "function selected() { return 1; }", "start-point"),
+      ];
+
+      const files = assembleSlicedOutput(nodes, parsedFiles, mode, keepAllNodes);
+      const output = files.get(entryFile)?.ms.toString();
+
+      expect(output).toContain("function selected() { return 1; }");
+      expect(output).toContain("1: (module, exports, require) => {");
+      expect(output).not.toContain("unrelated");
+      expect(output).not.toContain("2: ()");
+      if (mode === "blank") expect(output?.length).toBe(source.length);
+      expect(output).toBeDefined();
+      if (output !== undefined) {
+        expect(
+          parseSources([{ file: entryFile, source: output }]).get(entryFile)?.ast,
+        ).toBeDefined();
+      }
+    },
+  );
+
+  it("reports precision loss when an object table has an unsafe property", () => {
+    const source =
+      "bundle.modules = { 1: () => { function selected() {} }, [key()]: sideEffect() };";
+    const parsedFiles = parseSources([{ file: entryFile, source }]);
+    const nodes = [dependencyNode(entryFile, source, "function selected() {}", "start-point")];
+
+    const files = assembleSlicedOutput(nodes, parsedFiles, "compact", keepAllNodes);
+    const file = files.get(entryFile);
+
+    expect(file?.ms.toString()).toContain("[key()]: sideEffect()");
+    expect(file?.precisionLosses).toEqual([findRange(source, source)]);
+  });
+
+  it("retains a whole selected assignment when it overlaps a nested selection", () => {
+    const source = "bundle.modules = { 1: () => { function selected() {} }, 2: () => 2 };";
+    const parsedFiles = parseSources([{ file: entryFile, source }]);
+    const nodes = [
+      dependencyNode(entryFile, source, "function selected() {}", "start-point"),
+      dependencyNode(entryFile, source, source, "variable"),
+    ];
+
+    const file = assembleSlicedOutput(nodes, parsedFiles, "compact", keepAllNodes).get(entryFile);
+
+    expect(file?.ms.toString()).toBe(source);
+    expect(file?.precisionLosses).toEqual([findRange(source, source)]);
+  });
+
+  it("tracks and assembles a nested module selection through the public API", async () => {
+    const source = [
+      "const bundle = {};",
+      "bundle.modules = {",
+      "  1: () => { function selected() { return 1; } },",
+      "  2: () => { const unrelated = 3; },",
+      "};",
+    ].join("\n");
+    const startPoint = findRange(source, "function selected() { return 1; }");
+    const tracker = new DependencyTracker({ virtualFiles: { [entryFile]: source } });
+
+    const result = await tracker.track({ entryFile, startPoint, output: { mode: "compact" } });
+    const output = result.files.get(entryFile)?.ms.toString();
+
+    expect(result.nodes.find((node) => node.kind === "start-point")?.range).toEqual(startPoint);
+    expect(output).toContain("1: () => { function selected() { return 1; } }");
+    expect(output).not.toContain("unrelated");
+    expect(result.files.get(entryFile)?.precisionLosses).toEqual([]);
+    expect(output).toBeDefined();
+    if (output !== undefined) {
+      expect(parseSources([{ file: entryFile, source: output }]).get(entryFile)?.ast).toBeDefined();
+    }
+  });
 });

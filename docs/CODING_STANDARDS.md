@@ -16,6 +16,7 @@
   - [Arrow Functions Only](#arrow-functions-only-applicable-to-typescript-files-only)
   - [No `as` Type Assertions](#no-as-type-assertions)
   - [Type Aliases for Primitives](#type-aliases-for-primitives)
+  - [Named Object Return Types](#named-object-return-types)
 - [🔀 Control Flow Rules](#-control-flow-rules)
   - [switch over if/else](#switch-over-ifelse)
   - [assert-never in Every Default](#assert-never-in-every-default)
@@ -202,6 +203,30 @@ const buildId = (path: string, start: number, end: number): string => ...
 // correct - self-documenting aliases
 const buildId = (path: AbsolutePath, start: CharOffset, end: CharOffset): NodeId => ...
 ```
+
+### Named Object Return Types
+
+Inline object type literals in function return annotations are banned. This
+includes arrow functions, class methods, callbacks, and object shapes nested in
+generic types such as `Promise<{ ... }>`.
+
+```ts
+// banned
+const findSelection = (source: SourceText): { start: CharOffset; end: CharOffset } => ...;
+const loadResult = (): Promise<{ file: AbsolutePath; found: boolean }> => ...;
+
+// correct - define the named return type in src/types.ts
+const findSelection = (source: SourceText): OffsetRange => ...;
+const loadResult = (): Promise<LoadResult> => ...;
+```
+
+Add the named type to `src/types.ts`, document the type and each field with
+JSDoc, and import it from `@/types`. Use the same rule for private helpers:
+small scope does not make an inline return shape easier to reuse or maintain.
+Existing inline return shapes are legacy violations; replace them when their
+signature is next changed, and do not copy them into new code. Utility types
+such as `Promise<LoadResult>` and `Result<Value, Error>` remain valid because
+their returned shape is named.
 
 ---
 

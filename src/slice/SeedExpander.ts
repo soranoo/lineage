@@ -135,6 +135,8 @@ export class SeedExpander {
         return collectIdentifierNames(seedNode.expression, subExprRange);
       case "AssignmentExpression":
         return collectIdentifierNames(seedNode.right, subExprRange);
+      case "FunctionDeclaration":
+        return seedNode.body === null ? [] : collectIdentifierNames(seedNode.body, subExprRange);
       case "IfStatement":
         return collectIdentifierNames(seedNode.test, subExprRange);
       case "SwitchStatement":

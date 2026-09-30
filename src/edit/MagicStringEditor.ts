@@ -14,12 +14,12 @@ const sortRangesDescending = (ranges: OffsetRange[]): OffsetRange[] =>
   [...ranges].sort((left, right) => right.start - left.start);
 
 /**
- * Merge overlapping or adjacent keep ranges into a sorted list.
+ * Merge overlapping or adjacent ranges into a sorted list.
  *
  * @param ranges Raw keep ranges to normalize.
  * @returns Sorted non-overlapping keep ranges.
  */
-const normalizeKeepRanges = (ranges: Set<OffsetRange>): OffsetRange[] => {
+const normalizeRanges = (ranges: ReadonlySet<OffsetRange>): OffsetRange[] => {
   const sorted = [...ranges].sort((left, right) => {
     if (left.start === right.start) {
       return left.end - right.end;
@@ -64,7 +64,7 @@ const buildRemoveRanges = (source: SourceText, keepRanges: Set<OffsetRange>): Of
     return [];
   }
 
-  const normalized = normalizeKeepRanges(keepRanges);
+  const normalized = normalizeRanges(keepRanges);
 
   if (normalized.length === 0) {
     return [{ start: 0, end: sourceLength }];
@@ -99,14 +99,18 @@ export class MagicStringEditor implements IEditor {
    * @param source Original source text for range calculations.
    * @param keepRanges Ranges that should be preserved.
    * @param mode Output mode controlling blank vs compact edits.
+   * @param omitRanges Additional ranges to blank or remove within preserved source.
    */
   readonly apply = (
     ms: MagicString,
     source: SourceText,
     keepRanges: Set<OffsetRange>,
     mode: OutputMode,
+    omitRanges: ReadonlySet<OffsetRange> = new Set(),
   ): void => {
-    const removeRanges = buildRemoveRanges(source, keepRanges);
+    const removeRanges = normalizeRanges(
+      new Set([...buildRemoveRanges(source, keepRanges), ...omitRanges]),
+    );
 
     // Apply removals from the end to avoid shifting offsets for earlier ranges.
     const ordered = sortRangesDescending(removeRanges);

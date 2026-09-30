@@ -1,3 +1,4 @@
+import { assertNever } from "assert-never";
 import MagicString from "magic-string";
 import { describe, expect, it } from "vitest";
 
@@ -122,5 +123,29 @@ describe("MagicStringEditor", () => {
 
     expect(ms).toBe(original);
     expect(ms.toString()).toBe("keep");
+  });
+
+  it.each(["blank", "compact"] as const)("applies explicit omit ranges in %s mode", (mode) => {
+    const editor = new MagicStringEditor();
+    const source: SourceText = "const keep = 1; const drop = 2;";
+    const ms = new MagicString(source);
+    const omitRange = findRange(source, "const drop = 2;");
+    const keepRanges = buildKeepRanges([buildRange(0, source.length)]);
+
+    editor.apply(ms, source, keepRanges, mode, new Set([omitRange]));
+
+    switch (mode) {
+      case "blank":
+        expect(ms.toString()).toHaveLength(source.length);
+        expect(ms.toString().slice(omitRange.start, omitRange.end)).toBe(
+          " ".repeat(omitRange.end - omitRange.start),
+        );
+        break;
+      case "compact":
+        expect(ms.toString()).toBe("const keep = 1; ");
+        break;
+      default:
+        assertNever(mode);
+    }
   });
 });

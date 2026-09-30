@@ -223,6 +223,7 @@ export type SeedNode = AstNode & {
     | "VariableDeclaration"
     | "ExpressionStatement"
     | "AssignmentExpression"
+    | "FunctionDeclaration"
     | "IfStatement"
     | "SwitchStatement"
     | "WhileStatement"
@@ -271,6 +272,24 @@ export type OffsetRange = {
   start: CharOffset;
   /** Exclusive end offset, 0-based. */
   end: CharOffset;
+};
+
+/** A selected property within a directly assigned object table. */
+export type ObjectTableSelection = {
+  /** Object expression whose surrounding assignment must remain valid. */
+  table: AstNode;
+  /** Property containing the tracked source range. */
+  property: AstNode;
+};
+
+/** Source ranges and table entries chosen for one file's output assembly. */
+export type OutputRangePlan = {
+  /** Ranges preserved by the source editor. */
+  keepRanges: Set<OffsetRange>;
+  /** Object tables mapped to every property selected across tracker nodes. */
+  tables: Map<AstNode, Set<AstNode>>;
+  /** Statement ranges retained when precise table pruning is unsafe. */
+  precisionLosses: OffsetRange[];
 };
 
 /**
@@ -547,6 +566,8 @@ export type SlicedFile = {
   ms: MagicString;
   /** Original, unmodified source. */
   originalSource: SourceText;
+  /** Enclosing statement ranges retained because a nested table could not be safely pruned. */
+  precisionLosses: OffsetRange[];
 };
 
 /**
