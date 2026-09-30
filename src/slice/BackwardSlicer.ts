@@ -3,13 +3,18 @@ import { assertNever } from "assert-never";
 import { visitorKeys } from "oxc-parser";
 
 import { isAstNode, moduleCallKey, tryResolveModuleCall, walkAst } from "@/helpers";
-import { collectExports } from "@/helpers/module-boundary";
+import {
+  collectExports,
+  findCommonJsExportSite,
+  findCommonJsRequireSites,
+} from "@/helpers/module-boundary";
 import { BindingResolver } from "@/slice/BindingResolver";
 import { SeedExpander } from "@/slice/SeedExpander";
 import type {
   AbsolutePath,
   AstNode,
   BindingKind,
+  CommonJsRequireSite,
   DependencyEdge,
   DependencyKind,
   DependencyNode,
@@ -1997,6 +2002,136 @@ export class BackwardSlicer {
       return leafNode;
     };
 
+    /** Follow one statically named CommonJS import to its export declaration. */
+    const processRequireSite = (
+      site: CommonJsRequireSite,
+      item: IdentifierWorkItem,
+      source: SourceText,
+    ): void => {
+      const importNode = handleResolvedNode(site.boundary, item.file, source, "import", false);
+      addEdge(item.ownerNodeId, importNode.id, "import");
+
+      const resolution = this.resolver.resolve(site.binding.specifier, item.file);
+      switch (resolution.kind) {
+        case "failed":
+          processUnresolved(site.call, item.file, source, importNode.id, "import");
+          return;
+        case "ignored": {
+          emitIssue(
+            this.collector,
+            "ignored-path",
+            rangeFromNode(site.call),
+            item.file,
+            resolution.matchedPattern,
+          );
+          const leaf = handleResolvedNode(site.call, item.file, source, "ignored-leaf", false);
+          addEdge(importNode.id, leaf.id, "import");
+          return;
+        }
+        case "resolved":
+          break;
+        default:
+          assertNever(resolution);
+      }
+
+      const targetFile = resolution.absolutePath;
+      const targetParsed = parsedFiles.get(targetFile);
+      if (targetParsed === undefined) {
+        processUnresolved(site.call, item.file, source, importNode.id, "import");
+        return;
+      }
+
+      const memberCallee = item.callSite?.callee;
+      const memberName =
+        site.binding.importedName === "*" &&
+        memberCallee?.type === "MemberExpression" &&
+        memberCallee.object.type === "Identifier" &&
+        memberCallee.object.name === site.binding.localAlias &&
+        !memberCallee.computed &&
+        memberCallee.property.type === "Identifier"
+          ? memberCallee.property.name
+          : null;
+      const requestedName =
+        site.binding.importedName === "*" ? (memberName ?? "default") : site.binding.importedName;
+      const commonJsExport =
+        findCommonJsExportSite(targetParsed.ast, requestedName) ??
+        (site.binding.importedName === "*" && requestedName !== "default"
+          ? findCommonJsExportSite(targetParsed.ast, "default")
+          : null);
+
+      let bindingNode: AstNode | null = null;
+      let bindingScope: AstNode = targetParsed.ast;
+      let exportOwner = importNode.id;
+      if (commonJsExport !== null) {
+        const exportNode = handleResolvedNode(
+          commonJsExport.boundary,
+          targetFile,
+          targetParsed.source,
+          "re-export",
+          false,
+        );
+        addEdge(importNode.id, exportNode.id, "import");
+        exportOwner = exportNode.id;
+        bindingScope = commonJsExport.boundary;
+        const localName = commonJsExport.binding.localName;
+        if (localName !== undefined) {
+          bindingNode =
+            bindingResolver.resolveWithScope(localName, commonJsExport.boundary, targetParsed)
+              ?.node ?? null;
+        } else if (
+          commonJsExport.boundary.type === "AssignmentExpression" &&
+          commonJsExport.boundary.right.type === "Literal"
+        ) {
+          return;
+        }
+      } else {
+        const esmExport = findExportedBinding(targetParsed, requestedName);
+        if (esmExport?.kind === "declaration") bindingNode = esmExport.node;
+      }
+
+      if (bindingNode === null) {
+        processUnresolved(site.call, item.file, source, importNode.id, "import");
+        return;
+      }
+
+      if (isFunctionNode(bindingNode)) {
+        processResolvedFunction(
+          bindingNode,
+          targetFile,
+          targetParsed.source,
+          exportOwner,
+          "import",
+          item.callSite ? item.ownerNodeId : null,
+          false,
+        );
+      } else if (bindingNode.type === "VariableDeclarator") {
+        processResolvedVariable(
+          bindingNode,
+          "program",
+          targetFile,
+          targetParsed.source,
+          exportOwner,
+          "import",
+          false,
+          bindingScope,
+          bindingNode,
+        );
+      } else if (bindingNode.type === "ClassDeclaration") {
+        processResolvedClass(
+          bindingNode,
+          targetFile,
+          targetParsed.source,
+          exportOwner,
+          "import",
+          false,
+          bindingScope,
+          bindingNode,
+        );
+      } else {
+        processUnresolved(site.call, item.file, source, importNode.id, "import");
+      }
+    };
+
     const worklist: WorkItem[] = [];
 
     const { seedNode, subExprRange } = findSeedNode(entryParsed, startPoint);
@@ -2050,6 +2185,26 @@ export class BackwardSlicer {
       }
 
       const resolved = bindingResolver.resolveWithScope(item.name, item.scopeNode, parsedFile);
+
+      const requireTarget =
+        item.name === "require" ? (item.callSite ?? item.referenceNode) : resolved?.node;
+      const requireSites =
+        requireTarget === undefined
+          ? []
+          : findCommonJsRequireSites(
+              parsedFile.ast,
+              requireTarget,
+              item.name === "require" ? undefined : item.name,
+            ).filter(
+              (site) =>
+                site.call.type === "CallExpression" &&
+                site.call.callee.type === "Identifier" &&
+                bindingResolver.resolveWithScope("require", site.call.callee, parsedFile) === null,
+            );
+      if (requireSites.length > 0) {
+        for (const site of requireSites) processRequireSite(site, item, parsedFile.source);
+        continue;
+      }
 
       if (!resolved) {
         processUnresolved(

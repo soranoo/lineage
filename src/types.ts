@@ -120,6 +120,24 @@ export type ModuleBoundaryImport = {
   reExportKind?: ReExportKind;
 };
 
+/** Literal CommonJS import found at a variable declaration. */
+export type CommonJsRequireSite = {
+  /** Variable declaration containing the require call. */
+  boundary: AstNode;
+  /** Literal require call within the declaration. */
+  call: AstNode;
+  /** Local alias and requested export metadata. */
+  binding: ModuleBoundaryImport;
+};
+
+/** CommonJS export assignment and the binding it exposes. */
+export type CommonJsExportSite = {
+  /** Assignment that publishes the binding. */
+  boundary: AstNode;
+  /** Exported name and optional local binding. */
+  binding: ExportedBinding;
+};
+
 /** A stable name used to identify a module-resolution plugin. */
 export type ModuleResolutionPluginName = string;
 

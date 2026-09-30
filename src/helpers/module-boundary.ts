@@ -1,7 +1,10 @@
 import { assertNever } from "assert-never";
 
+import { walkAst } from "@/helpers/ast-walker";
 import type {
   AstNode,
+  CommonJsExportSite,
+  CommonJsRequireSite,
   ExportedBinding,
   ExportedName,
   LocalAlias,
@@ -306,6 +309,75 @@ const collectRequireImports = (statement: AstNode): ModuleBoundaryImport[] => {
   return imports;
 };
 
+/** Find literal CommonJS imports associated with a declaration or require call. */
+export const findCommonJsRequireSites = (
+  ast: OxcAst,
+  target: AstNode,
+  localAlias?: LocalAlias,
+): CommonJsRequireSite[] => {
+  const candidates: Array<{ declarator: AstNode; declaration: AstNode }> = [];
+  walkAst(ast, (node, parent) => {
+    if (
+      node.type === "VariableDeclarator" &&
+      parent?.type === "VariableDeclaration" &&
+      node.start <= target.start &&
+      node.end >= target.end &&
+      node.init?.type === "CallExpression"
+    ) {
+      candidates.push({ declarator: node, declaration: parent });
+    }
+  });
+
+  const selected = candidates.sort(
+    (left, right) =>
+      left.declarator.end - left.declarator.start - (right.declarator.end - right.declarator.start),
+  )[0];
+  const declarator = selected?.declarator;
+  const declaration = selected?.declaration;
+  const call = declarator?.type === "VariableDeclarator" ? declarator.init : null;
+  if (
+    declarator?.type !== "VariableDeclarator" ||
+    call?.type !== "CallExpression" ||
+    declaration?.type !== "VariableDeclaration"
+  ) {
+    return [];
+  }
+
+  const declaredAliases = new Set<LocalAlias>();
+  walkAst(declarator.id, (node, parent) => {
+    if (
+      node.type === "Identifier" &&
+      !(parent?.type === "Property" && parent.key === node && parent.value !== node)
+    ) {
+      declaredAliases.add(node.name);
+    }
+  });
+
+  return collectRequireImports(declaration)
+    .filter(
+      (binding) =>
+        declaredAliases.has(binding.localAlias) &&
+        (localAlias === undefined || binding.localAlias === localAlias),
+    )
+    .map((binding) => ({ boundary: declaration, call, binding }));
+};
+
+/** Find a CommonJS export assignment, including one inside a wrapper. */
+export const findCommonJsExportSite = (
+  ast: OxcAst,
+  exportedName: ExportedName,
+): CommonJsExportSite | null => {
+  let found: CommonJsExportSite | null = null;
+  walkAst(ast, (node) => {
+    if (found !== null) return;
+    const binding = collectCommonJsExports(node).find(
+      (entry) => entry.exportedName === exportedName,
+    );
+    if (binding !== undefined) found = { boundary: node, binding };
+  });
+  return found;
+};
+
 /**
  * Collect module paths referenced by top-level ESM and CommonJS boundaries.
  *
@@ -348,6 +420,14 @@ export const collectSpecifiers = (ast: OxcAst): ModuleSpecifier[] => {
         break;
     }
   }
+
+  // Wrapped bundles place literal require calls inside an IIFE rather than at
+  // Program scope. Parsing their targets here makes them available to the
+  // backward slicer without treating a dynamic require as a module boundary.
+  walkAst(ast, (node) => {
+    const specifier = getRequireSpecifier(node);
+    if (specifier !== null) specifiers.add(specifier);
+  });
 
   return [...specifiers];
 };
