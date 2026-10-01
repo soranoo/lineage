@@ -7,7 +7,14 @@ import { DependencyTracker } from "@/index";
 const page: AbsolutePath = "/project/page.js";
 const runtime: AbsolutePath = "/project/runtime.js";
 
-/** Track a selected fragment in a set of virtual CommonJS files. */
+/**
+ * Track a selected fragment in a set of virtual CommonJS files.
+ * @returns The dependency tracking result for the selected source fragment.
+ * @param source Source text containing the CommonJS call under test.
+ * @param fragment Source fragment identifying the start point.
+ * @param files Scanned absolute file paths.
+ * @param config Project configuration used to build the cache key.
+ */
 const track = async (
   source: SourceText,
   fragment: SourceText,

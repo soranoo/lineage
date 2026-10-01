@@ -9,6 +9,7 @@ import assertNever from "assert-never";
 type FunctionScopeNode = Extract<
   AstNode,
   {
+    /** AST node kinds that introduce their own function scope. */
     type:
       | "FunctionDeclaration"
       | "FunctionExpression"
@@ -106,7 +107,7 @@ export class BindingResolver {
    * @param expression Expression whose value should be inspected.
    * @param scopeNode AST node providing the lookup scope.
    * @param parsedFile Parsed file containing the expression.
-   * @param resolving
+   * @param resolving Nodes currently being evaluated, used to break cycles.
    * @returns Literal values known without evaluating arbitrary code.
    */
   private readonly resolveStaticValues = (

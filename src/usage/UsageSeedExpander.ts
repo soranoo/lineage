@@ -1,11 +1,23 @@
-import type { AstNode, OffsetRange, ParsedFile, SourceText, UsageSeed } from "@/types";
 import { walkAst } from "@/helpers";
 import { buildScopes } from "@/helpers/scope";
+import type { AstNode, OffsetRange, ParsedFile, SourceText, UsageSeed } from "@/types";
 import { StartPointNotFoundError } from "@/types";
 
+/**
+ * Check whether an AST node fully contains the requested source range.
+ * @param node Candidate container node.
+ * @param range Source range being inspected.
+ * @returns True when the AST node fully contains the source range.
+ */
 const containsRange = (node: AstNode, range: OffsetRange): boolean =>
   node.start <= range.start && node.end >= range.end;
 
+/**
+ * Check whether an identifier declares a binding in its parent node.
+ * @param node Candidate identifier node.
+ * @param parent Parent AST node, when one exists.
+ * @returns True when the identifier declares a binding in its parent.
+ */
 const isBindingIdentifier = (node: AstNode, parent: AstNode | null): boolean => {
   if (node.type !== "Identifier" || parent === null) {
     return false;
@@ -32,6 +44,12 @@ const isBindingIdentifier = (node: AstNode, parent: AstNode | null): boolean => 
   }
 };
 
+/**
+ * Find the smallest scope that owns a declaration, falling back to its containing scope.
+ * @param parsedFile Parsed source file containing the relevant AST node.
+ * @param declaration AST node introducing the binding.
+ * @returns The smallest scope owning the declaration, or its containing scope.
+ */
 const findContainingScope = (parsedFile: ParsedFile, declaration: AstNode): AstNode => {
   const scopes = buildScopes(parsedFile.ast)
     .filter((scope) => containsRange(scope.node, declaration))
@@ -48,6 +66,11 @@ const findContainingScope = (parsedFile: ParsedFile, declaration: AstNode): AstN
   return bindingScope?.node ?? scopes[0]?.node ?? parsedFile.ast;
 };
 
+/**
+ * Read an identifier's name, or return null for other AST nodes.
+ * @param node Candidate identifier node.
+ * @returns The identifier name, or null for another node type.
+ */
 const findName = (node: AstNode): SourceText | null =>
   node.type === "Identifier" ? node.name : null;
 
@@ -62,7 +85,14 @@ export class UsageSeedExpander {
    * @throws {StartPointNotFoundError} When the range is not a declaration.
    */
   readonly expand = (parsedFile: ParsedFile, startPoint: OffsetRange): UsageSeed => {
-    const candidates: Array<{ node: AstNode; bindingNode: AstNode; name: SourceText }> = [];
+    const candidates: Array<{
+      /** AST node retained as the usage start point. */
+      node: AstNode;
+      /** Binding node used to locate the owning scope. */
+      bindingNode: AstNode;
+      /** Name of the binding found at the seed. */
+      name: SourceText;
+    }> = [];
 
     walkAst(parsedFile.ast, (node, parent) => {
       if (!containsRange(node, startPoint)) {

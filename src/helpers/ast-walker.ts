@@ -1,6 +1,5 @@
-import { visitorKeys } from "oxc-parser";
-
 import type { AstNode } from "@/types";
+import { visitorKeys } from "oxc-parser";
 
 /**
  * Visitor callback invoked for each AST node during traversal.
@@ -43,6 +42,11 @@ export const isAstNode = (value: unknown): value is AstNode => {
 export const walkAst = (root: AstNode, visit: AstVisit): void => {
   const seen = new Set<AstNode>();
 
+  /**
+   * Visit a node and recursively walk its AST children once.
+   * @param node Current AST node to visit.
+   * @param parent Parent AST node, when one exists.
+   */
   const traverse = (node: AstNode, parent: AstNode | null): void => {
     if (seen.has(node)) {
       return;

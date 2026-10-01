@@ -1,8 +1,7 @@
+import { isAstNode, walkAst } from "@/helpers/ast-walker";
+import type { AstNode, Scope, SourceText } from "@/types";
 import { assertNever } from "assert-never";
 import { visitorKeys } from "oxc-parser";
-
-import type { AstNode, Scope, SourceText } from "@/types";
-import { isAstNode, walkAst } from "@/helpers/ast-walker";
 
 /**
  * Create an empty scope for an AST container.
@@ -39,6 +38,11 @@ const findNearestNonBlockScope = (scopeStack: Scope[]): Scope => {
   return fallback;
 };
 
+/**
+ * Add identifiers bound by a destructuring pattern to the target scope.
+ * @param pattern Binding pattern to inspect.
+ * @param scope Lexical scope receiving the binding.
+ */
 const registerPatternBindings = (pattern: AstNode, scope: Scope): void => {
   walkAst(pattern, (node, parent) => {
     if (
@@ -145,6 +149,11 @@ export const buildScopes = (root: AstNode): Scope[] => {
   const programScope = createScope(root, "program");
   scopes.push(programScope);
 
+  /**
+   * Register declarations while descending through nested lexical scopes.
+   * @param node Current AST node whose declarations are registered.
+   * @param scopeStack Active lexical scopes from outermost to innermost.
+   */
   const traverse = (node: AstNode, scopeStack: Scope[]): void => {
     registerBindings(node, scopeStack);
 
@@ -227,7 +236,12 @@ export const resolveBindingInScopes = (
   name: SourceText,
   referenceNode: AstNode,
   scopes: Scope[],
-): { binding: AstNode; scope: Scope } | null => {
+): {
+  /** AST node that declares the resolved name. */
+  binding: AstNode;
+  /** Scope that owns the resolved binding. */
+  scope: Scope;
+} | null => {
   const candidates = scopes
     .filter(
       (scope) => scope.node.start <= referenceNode.start && scope.node.end >= referenceNode.end,

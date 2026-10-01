@@ -9,9 +9,9 @@ export default defineConfig({
     newlinesBetween: true,
     internalPattern: ["@/**"],
     groups: [
-      ["builtin", "type-builtin"],
-      ["external", "type-external"],
-      ["internal", "type-internal"],
+      ["type-builtin", "builtin"],
+      ["type-external", "external"],
+      ["type-internal", "internal"],
       ["style"],
       ["unknown"],
     ],

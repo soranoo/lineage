@@ -1,5 +1,5 @@
-import { visitorKeys } from "oxc-parser";
-
+import { isAstNode } from "@/helpers/ast-walker";
+import { buildScopes, findScopeByNode, resolveBindingInScopes } from "@/helpers/scope";
 import type {
   AstNode,
   ParsedFile,
@@ -8,8 +8,7 @@ import type {
   ReferenceSite,
   SourceText,
 } from "@/types";
-import { isAstNode } from "@/helpers/ast-walker";
-import { buildScopes, findScopeByNode, resolveBindingInScopes } from "@/helpers/scope";
+import { visitorKeys } from "oxc-parser";
 
 /**
  * Finds direct reads and writes of one binding across its scope and closures.
@@ -42,6 +41,11 @@ export class ReferenceFinder {
     const references: ReferenceSite[] = [];
     const functionStack: AstNode[] = [];
 
+    /**
+     * Record references to the target binding and recurse through child nodes.
+     * @param node Current AST node checked for a reference to the target binding.
+     * @param parent Parent AST node, when one exists.
+     */
     const visit = (node: AstNode, parent: AstNode | null): void => {
       if (node.type === "Identifier" && node.name === name && this.isReference(node, parent)) {
         const resolved = resolveBindingInScopes(name, node, scopes);

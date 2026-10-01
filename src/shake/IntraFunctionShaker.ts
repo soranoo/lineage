@@ -1,7 +1,3 @@
-import { assertNever } from "assert-never";
-import { Visitor } from "oxc-parser";
-import type { VisitorObject } from "oxc-parser";
-
 import type { IShaker } from "@/shake";
 import type { FunctionNode, OffsetRange, SourceText } from "@/types";
 import type {
@@ -24,6 +20,9 @@ import type {
   VariableDeclaration,
   VariableDeclarator,
 } from "@oxc-project/types";
+import { assertNever } from "assert-never";
+import { Visitor } from "oxc-parser";
+import type { VisitorObject } from "oxc-parser";
 
 /**
  * Analysis result for a statement list.
@@ -719,6 +718,10 @@ const collectIdentifiersFromProgram = (program: Program): Set<SourceText> => {
   const names = new Set<SourceText>();
 
   const visitor: VisitorObject = {
+    /**
+     * Record each identifier name encountered in the program.
+     * @param current Identifier node encountered by the visitor.
+     */
     Identifier: (current) => {
       names.add(current.name);
     },
@@ -777,9 +780,16 @@ const buildExpressionStatement = (expression: Expression): ExpressionStatement =
  * Build an offset range from a span-like node.
  *
  * @param node Node with start and end offsets.
+ * @param node.start Start offset of the node.
+ * @param node.end End offset of the node.
  * @returns Offset range covering the node span.
  */
-const buildRange = (node: { start: number; end: number }): OffsetRange => ({
+const buildRange = (node: {
+  /** Inclusive start offset of the source span. */
+  start: number;
+  /** Exclusive end offset of the source span. */
+  end: number;
+}): OffsetRange => ({
   start: node.start,
   end: node.end,
 });

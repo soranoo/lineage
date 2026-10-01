@@ -1,5 +1,3 @@
-import { assertNever } from "assert-never";
-
 import type {
   AbsolutePath,
   ExportedName,
@@ -8,10 +6,18 @@ import type {
   ReExportEntry,
   ReExportKind,
 } from "@/types";
+import { assertNever } from "assert-never";
 
 const EXPORT_ALL: ExportedName = "*";
 
-const canonicalPath = (filePath: AbsolutePath): AbsolutePath => {
+/**
+ * Normalize a Windows drive letter so equivalent absolute paths share graph entries.
+ * @param filePath Absolute path of the file to process.
+ * @returns The path with an uppercase Windows drive letter, or the original path elsewhere.
+ */
+const canonicalPath = (
+  filePath: AbsolutePath,
+): AbsolutePath => {
   if (filePath.length > 1 && filePath[1] === ":") {
     return `${filePath[0]?.toUpperCase() ?? ""}${filePath.slice(1)}`;
   }
@@ -161,7 +167,14 @@ export class ImportGraph {
     );
   };
 
-  /** Collect importer entries recursively through re-export edges. */
+  /**
+   * Collect importer entries recursively through re-export edges.
+   * @param sourceFile Absolute path of the source module.
+   * @param exportedName Exported binding name being queried.
+   * @param seenQueries Source/export queries already traversed to prevent cycles.
+   * @param seenEntries Importer entries already added to the result.
+   * @param result Ordered importer list being assembled.
+   */
   private readonly collectImporters = (
     sourceFile: AbsolutePath,
     exportedName: ExportedName,
@@ -200,7 +213,12 @@ export class ImportGraph {
     }
   };
 
-  /** Append a result entry once while preserving insertion order. */
+  /**
+   * Append a result entry once while preserving insertion order.
+   * @param entry Direct importer to add if its file, export, and alias are new.
+   * @param seenEntries Importer entries already added to the result.
+   * @param result Ordered importer list receiving the entry.
+   */
   private readonly appendImporter = (
     entry: ImporterEntry,
     seenEntries: Set<string>,
@@ -213,7 +231,12 @@ export class ImportGraph {
     }
   };
 
-  /** Determine whether a re-export applies to a queried source export. */
+  /**
+   * Determine whether a re-export applies to a queried source export.
+   * @param entry Re-export edge whose syntax determines whether the name passes through.
+   * @param exportedName Exported binding name being queried.
+   * @returns True when the re-export exposes the queried source name.
+   */
   private readonly reExportMatches = (
     entry: ReExportEntry,
     exportedName: ExportedName,
@@ -231,7 +254,12 @@ export class ImportGraph {
     }
   };
 
-  /** Resolve the name exposed by a matching re-export edge. */
+  /**
+   * Resolve the name exposed by a matching re-export edge.
+   * @param entry Re-export edge that maps a source name to an exposed name.
+   * @param queriedName Export name requested from the source module.
+   * @returns The name exposed by the re-exporting module.
+   */
   private readonly reExportedName = (
     entry: ReExportEntry,
     queriedName: ExportedName,
@@ -248,13 +276,23 @@ export class ImportGraph {
     }
   };
 
-  /** Compare direct importer entries by their complete identity. */
+  /**
+   * Compare direct importer entries by their complete identity.
+   * @param left First graph entry to compare.
+   * @param right Second graph entry to compare.
+   * @returns True when both direct import entries identify the same edge.
+   */
   private readonly sameImport = (left: ImporterEntry, right: ImporterEntry): boolean =>
     left.importerFile === right.importerFile &&
     left.exportedName === right.exportedName &&
     left.localAlias === right.localAlias;
 
-  /** Compare re-export entries by their complete identity. */
+  /**
+   * Compare re-export entries by their complete identity.
+   * @param left First graph entry to compare.
+   * @param right Second graph entry to compare.
+   * @returns True when both re-export entries identify the same edge.
+   */
   private readonly sameReExport = (left: ReExportEntry, right: ReExportEntry): boolean =>
     left.kind === right.kind &&
     left.reExporterFile === right.reExporterFile &&
@@ -262,11 +300,20 @@ export class ImportGraph {
     left.importedName === right.importedName &&
     left.exportedName === right.exportedName;
 
-  /** Build a stable identity for a direct importer edge. */
+  /**
+   * Build a stable identity for a direct importer edge.
+   * @param sourceFile Absolute path of the source module.
+   * @param entry Direct importer whose source, importer, export, and alias form the key.
+   * @returns A stable key identifying the direct importer edge.
+   */
   private readonly importKey = (sourceFile: AbsolutePath, entry: ImporterEntry): string =>
     `${sourceFile}\u0000${entry.importerFile}\u0000${entry.exportedName}\u0000${entry.localAlias}`;
 
-  /** Build a stable identity for a re-export edge. */
+  /**
+   * Build a stable identity for a re-export edge.
+   * @param entry Re-export whose files, kind, and names form the key.
+   * @returns A stable key identifying the re-export edge.
+   */
   private readonly reExportKey = (entry: ReExportEntry): string =>
     `${entry.sourceFile}\u0000${entry.reExporterFile}\u0000${entry.kind}\u0000${entry.importedName}\u0000${entry.exportedName}`;
 }

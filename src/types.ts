@@ -327,6 +327,12 @@ export type ModuleResolutionPlugin = {
   /**
    * Resolves a recognized call into a normal module specifier, or returns
    * null when this plugin does not recognize the call.
+   *
+   * @param call The call details supplied to the plugin.
+   * @param call.calleeText Source text of the callee expression.
+   * @param call.args Statically known literal arguments.
+   * @param call.file Absolute path of the file containing the call.
+   * @returns The resolved specifier, or `null` when this plugin does not recognize the call.
    */
   tryResolve: (call: {
     /** Source text of the callee expression. */
@@ -335,11 +341,17 @@ export type ModuleResolutionPlugin = {
     args: readonly LiteralValue[];
     /** Absolute path of the file containing the call. */
     file: AbsolutePath;
-  }) => { specifier: ModuleSpecifier } | null;
+  }) => {
+    /** Module path returned by a plugin that recognizes the call. */
+    specifier: ModuleSpecifier;
+  } | null;
 };
 
 /** Cached result from consulting a module-resolution plugin for one call. */
-export type ModuleResolutionResult = { specifier: ModuleSpecifier } | null;
+export type ModuleResolutionResult = {
+  /** Resolved module path, when a plugin recognizes the call. */
+  specifier: ModuleSpecifier;
+} | null;
 
 /**
  * Resolver dispatch tier used by `VirtualAwareResolver`.

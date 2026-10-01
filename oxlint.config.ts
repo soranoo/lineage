@@ -67,30 +67,64 @@ export default defineConfig({
     "jsdoc-js/require-param-description": [
       "error",
       {
-        contexts: ["TSPropertySignature"],
+        contexts: [
+          "FunctionDeclaration",
+          "MethodDefinition",
+          "ArrowFunctionExpression",
+          "FunctionExpression",
+
+          // Apply to function types
+          "TSMethodSignature",
+          "TSPropertySignature[typeAnnotation.typeAnnotation.type='TSFunctionType']",
+        ],
       },
     ],
     "jsdoc-js/require-param": [
       "error",
       {
         enableFixer: false,
-        contexts: ["TSPropertySignature"],
+        contexts: [
+          "FunctionDeclaration",
+          "MethodDefinition",
+          "ArrowFunctionExpression",
+          "FunctionExpression",
+
+          // Apply to function types
+          "TSMethodSignature",
+          "TSPropertySignature[typeAnnotation.typeAnnotation.type='TSFunctionType']",
+        ],
       },
     ],
     // Enforce @returns tag
     "jsdoc-js/require-returns-description": [
       "error",
       {
-        contexts: ["TSPropertySignature"],
+        contexts: [
+          "FunctionDeclaration",
+          "MethodDefinition",
+          "ArrowFunctionExpression",
+          "FunctionExpression",
+
+          // Apply to function types
+          "TSMethodSignature",
+          "TSPropertySignature[typeAnnotation.typeAnnotation.type='TSFunctionType']",
+        ],
       },
     ],
     "jsdoc-js/require-returns": [
       "error",
       {
         enableFixer: false,
-        // Enforces @returns even if the return type is void or undefined
-        forceRequireReturn: true,
-        contexts: ["TSPropertySignature"],
+        contexts: [
+          "FunctionDeclaration",
+          "MethodDefinition",
+          "ArrowFunctionExpression",
+          "FunctionExpression",
+
+          // Apply to function types
+          "TSMethodSignature",
+          "TSPropertySignature[typeAnnotation.typeAnnotation.type='TSFunctionType']",
+        ],
       },
     ],
 
@@ -102,6 +136,8 @@ export default defineConfig({
           "FunctionDeclaration",
           "MethodDefinition",
           "ArrowFunctionExpression",
+          "FunctionExpression",
+
           "ClassDeclaration",
           "TSTypeAliasDeclaration",
           "TSInterfaceDeclaration",
@@ -117,6 +153,14 @@ export default defineConfig({
     // No "-" between param to its description
     "jsdoc-js/require-hyphen-before-param-description": ["error", "never"],
   },
+  overrides: [
+    {
+      files: ["**/__tests__/**/*", "**/*.test.*", "**/*.spec.*"],
+      rules: {
+        "jsdoc-js/require-jsdoc": "off",
+      },
+    },
+  ],
   env: {
     builtin: true,
   },

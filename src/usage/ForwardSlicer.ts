@@ -1,9 +1,7 @@
-import { assertNever } from "assert-never";
-
-import type { IParser } from "@/parse";
 import { walkAst } from "@/helpers";
 import { collectExports } from "@/helpers/module-boundary";
 import { buildScopes, resolveBindingInScopes } from "@/helpers/scope";
+import type { IParser } from "@/parse";
 import type { IProjectIndex } from "@/project";
 import type {
   AbsolutePath,
@@ -23,20 +21,38 @@ import type {
   UsageSeed,
   UsageSliceResult,
 } from "@/types";
-
 import { StartPointNotFoundError } from "@/types";
 import { ReferenceFinder } from "@/usage/ReferenceFinder";
 import { UsageSeedExpander } from "@/usage/UsageSeedExpander";
-
 import type { IUsageSlicer } from "@/usage/UsageSlicer";
+import { assertNever } from "assert-never";
 
 const DEFAULT_USAGE_NODE_LIMIT: UsageNodeLimit = 10_000;
 
-const toRange = (node: AstNode): OffsetRange => ({ start: node.start, end: node.end });
+/**
+ * Copy an AST node's source offsets into a range.
+ * @param node AST node whose source offsets are copied.
+ * @returns A range with the node's start and end offsets.
+ */
+const toRange = (node: AstNode): OffsetRange => ({
+  start: node.start,
+  end: node.end,
+});
 
+/**
+ * Build a stable usage-node ID from its file path and source range.
+ * @param file Absolute path of the file being processed.
+ * @param range Source range being inspected.
+ * @returns A stable ID combining the file path and range offsets.
+ */
 const buildNodeId = (file: AbsolutePath, range: OffsetRange): NodeId =>
   `${file}:${range.start}:${range.end}`;
 
+/**
+ * Check whether an AST node is a supported function form.
+ * @param node Candidate function node.
+ * @returns True when the node is a supported function declaration or expression.
+ */
 const isFunctionNode = (node: AstNode): node is FunctionNode => {
   switch (node.type) {
     case "FunctionDeclaration":
@@ -50,6 +66,11 @@ const isFunctionNode = (node: AstNode): node is FunctionNode => {
   }
 };
 
+/**
+ * Check whether a top-level statement exports bindings.
+ * @param node Candidate top-level export statement.
+ * @returns True when the node is an ESM export statement.
+ */
 const isExportStatement = (node: AstNode): boolean => {
   switch (node.type) {
     case "ExportNamedDeclaration":
@@ -61,6 +82,11 @@ const isExportStatement = (node: AstNode): boolean => {
   }
 };
 
+/**
+ * Check whether a statement may introduce an import or re-export boundary.
+ * @param node Candidate import, variable, or re-export statement.
+ * @returns True when the statement may import or re-export a binding.
+ */
 const isImportBoundary = (node: AstNode): boolean => {
   switch (node.type) {
     case "ImportDeclaration":
@@ -75,9 +101,20 @@ const isImportBoundary = (node: AstNode): boolean => {
   }
 };
 
+/**
+ * Read a node's identifier name, or return null for other node types.
+ * @param node Candidate identifier node.
+ * @returns The identifier name, or null for another node type.
+ */
 const identifierName = (node: AstNode | null | undefined): SourceText | null =>
   node?.type === "Identifier" ? node.name : null;
 
+/**
+ * Check whether an AST subtree contains an identifier with the requested name.
+ * @param root Root AST node of the subtree to inspect.
+ * @param name Binding or exported name to find.
+ * @returns True when the subtree contains the named identifier.
+ */
 const containsIdentifier = (root: AstNode, name: SourceText): boolean => {
   let found = false;
   walkAst(root, (node) => {
@@ -88,6 +125,11 @@ const containsIdentifier = (root: AstNode, name: SourceText): boolean => {
   return found;
 };
 
+/**
+ * Find a function declaration or function-valued variable initializer for a binding.
+ * @param binding AST node that declares the tracked binding.
+ * @returns The function bound by the node, or null when it is not function-valued.
+ */
 const findFunctionForBinding = (binding: AstNode): AstNode | null => {
   if (isFunctionNode(binding)) {
     return binding;
@@ -100,6 +142,12 @@ const findFunctionForBinding = (binding: AstNode): AstNode | null => {
   return null;
 };
 
+/**
+ * Find the first binding identifier in a pattern, optionally matching a name.
+ * @param pattern Binding pattern to inspect.
+ * @param name Optional identifier name to match in the pattern.
+ * @returns The first matching binding identifier, or null when none exists.
+ */
 const findPatternBinding = (pattern: AstNode, name?: SourceText): AstNode | null => {
   let result: AstNode | null = null;
   walkAst(pattern, (node, parent) => {
@@ -120,6 +168,11 @@ const findPatternBinding = (pattern: AstNode, name?: SourceText): AstNode | null
   return result;
 };
 
+/**
+ * Check whether a call invokes a member of the global `console` object.
+ * @param call Call expression being inspected.
+ * @returns True when the call invokes a member of `console`.
+ */
 const isConsoleCall = (call: AstNode): boolean =>
   call.type === "CallExpression" &&
   call.callee.type === "MemberExpression" &&
@@ -177,12 +230,23 @@ export class ForwardSlicer implements IUsageSlicer {
     const edges: UsageSliceResult["edges"] = [];
     const issues: TrackerIssue[] = [];
     const nodeById = new Map<NodeId, UsageNode>();
-    const queue: Array<{ seed: UsageSeed; addStart: boolean }> = [
-      { seed: initialSeed, addStart: true },
-    ];
+    const queue: Array<{
+      /** Binding to scan for direct references. */
+      seed: UsageSeed;
+      /** Whether to include the declaration itself as a start-point node. */
+      addStart: boolean;
+    }> = [{ seed: initialSeed, addStart: true }];
     const visited = new Set<SourceText>();
     let capReached = false;
 
+    /**
+     * Reuse or create a usage node, stopping when the configured node limit is reached.
+     * @param file Absolute path containing the usage node.
+     * @param node Reference or declaration represented by the usage node.
+     * @param kind How the reference or declaration uses the tracked value.
+     * @param continuation Known destination or terminal continuation details.
+     * @returns The existing or new usage node, or null after the node limit is reached.
+     */
     const addNode = (
       file: AbsolutePath,
       node: AstNode,
@@ -218,6 +282,12 @@ export class ForwardSlicer implements IUsageSlicer {
       return usageNode;
     };
 
+    /**
+     * Add a graph edge unless the same relationship was already recorded.
+     * @param from Source usage node of the graph edge.
+     * @param to Target usage node of the graph edge.
+     * @param kind Whether the relationship is a read, import, or continuation.
+     */
     const addEdge = (
       from: UsageNode,
       to: UsageNode,
@@ -284,20 +354,36 @@ export class ForwardSlicer implements IUsageSlicer {
     return { nodes, edges, issues };
   };
 
-  /** Build an identity-based parent lookup for context classification. */
+  /**
+   * Build an identity-based parent lookup for context classification.
+   * @param root Root AST node of the subtree to inspect.
+   * @returns A map from each visited AST node to its parent.
+   */
   private readonly buildParentMap = (root: AstNode): Map<AstNode, AstNode | null> => {
     const parents = new Map<AstNode, AstNode | null>();
     walkAst(root, (node, parent) => parents.set(node, parent));
     return parents;
   };
 
-  /** Classify one direct reference and compute a best-effort continuation. */
+  /**
+   * Classify one direct reference and compute a best-effort continuation.
+   * @param reference Direct binding reference to classify.
+   * @param parents Lookup from AST nodes to their parents.
+   * @param parsedFile Parsed source file containing the relevant AST node.
+   * @param scopeNode AST node that owns the lexical scope.
+   * @returns The usage kind and any continuation for the direct reference.
+   */
   private readonly classifyReference = (
     reference: ReferenceSite,
     parents: ReadonlyMap<AstNode, AstNode | null>,
     parsedFile: ParsedFile,
     scopeNode: AstNode,
-  ): { kind: UsageKind; continuation?: UsageContinuation } => {
+  ): {
+    /** Classification assigned to this reference. */
+    kind: UsageKind;
+    /** Next known location or reason traversal stops at this reference. */
+    continuation?: UsageContinuation;
+  } => {
     const parent = parents.get(reference.node) ?? null;
     switch (reference.parentContext) {
       case "declarator":
@@ -336,14 +422,27 @@ export class ForwardSlicer implements IUsageSlicer {
     }
   };
 
-  /** Classify a read that may be an assignment RHS or an invoked callee. */
+  /**
+   * Classify a read that may be an assignment RHS or an invoked callee.
+   * @param reference Direct binding reference to classify.
+   * @param parent Parent AST node, when one exists.
+   * @param parents Lookup from AST nodes to their parents.
+   * @param parsedFile Parsed source file containing the relevant AST node.
+   * @param scopeNode AST node that owns the lexical scope.
+   * @returns The read usage kind and any continuation destination.
+   */
   private readonly classifyReadReference = (
     reference: ReferenceSite,
     parent: AstNode | null,
     parents: ReadonlyMap<AstNode, AstNode | null>,
     parsedFile: ParsedFile,
     scopeNode: AstNode,
-  ): { kind: UsageKind; continuation?: UsageContinuation } => {
+  ): {
+    /** Classification assigned to this read. */
+    kind: UsageKind;
+    /** Next known location or reason traversal stops at this read. */
+    continuation?: UsageContinuation;
+  } => {
     if (parent?.type === "AssignmentExpression" && parent.right === reference.node) {
       const destination =
         parent.left.type === "Identifier"
@@ -363,17 +462,34 @@ export class ForwardSlicer implements IUsageSlicer {
     return { kind: "read-reference" };
   };
 
-  /** Build a classified terminal node result. */
+  /**
+   * Build a classified terminal node result.
+   * @param reason Reason attached to this range or continuation.
+   * @param opaque Whether the destination cannot be determined statically.
+   * @param continuesAt Known destination of the continued value, if any.
+   * @returns A terminal usage classification with its continuation details.
+   */
   private readonly continuationResult = (
     reason: UsageContinuation["reason"],
     opaque: boolean,
     continuesAt: UsageContinuation["continuesAt"],
-  ): { kind: UsageKind; continuation: UsageContinuation } => ({
+  ): {
+    /** Terminal usage classification for an untraced continuation. */
+    kind: UsageKind;
+    /** Reason and optional destination for the terminal usage. */
+    continuation: UsageContinuation;
+  } => ({
     kind: "untraced-continuation",
     continuation: { reason, opaque, ...(continuesAt === undefined ? {} : { continuesAt }) },
   });
 
-  /** Locate the fresh or existing binding receiving an assignment. */
+  /**
+   * Locate the fresh or existing binding receiving an assignment.
+   * @param target AST node or binding to locate.
+   * @param parsedFile Parsed source file containing the relevant AST node.
+   * @param scopeNode AST node that owns the lexical scope.
+   * @returns The resolved assignment target, or undefined when it cannot be followed.
+   */
   private readonly findAssignmentDestination = (
     target: AstNode,
     parsedFile: ParsedFile,
@@ -395,7 +511,12 @@ export class ForwardSlicer implements IUsageSlicer {
     };
   };
 
-  /** Find the destination declaration for a declarator reference. */
+  /**
+   * Find the destination declaration for a declarator reference.
+   * @param parent Parent AST node, when one exists.
+   * @param parsedFile Parsed source file containing the relevant AST node.
+   * @returns The declarator's bound name and source range, when known.
+   */
   private readonly findDeclaratorDestination = (
     parent: AstNode | null,
     parsedFile: ParsedFile,
@@ -417,7 +538,14 @@ export class ForwardSlicer implements IUsageSlicer {
     };
   };
 
-  /** Find the local function parameter receiving a call argument. */
+  /**
+   * Find the local function parameter receiving a call argument.
+   * @param call Call expression being inspected.
+   * @param argument Call argument whose parameter should be found.
+   * @param parsedFile Parsed source file containing the relevant AST node.
+   * @param scopeNode AST node that owns the lexical scope.
+   * @returns The corresponding local function parameter, when it can be resolved.
+   */
   private readonly findCallParameter = (
     call: AstNode | null,
     argument: AstNode,
@@ -456,7 +584,13 @@ export class ForwardSlicer implements IUsageSlicer {
     return { file: parsedFile.absolutePath, range: toRange(parameter), label: parameter.name };
   };
 
-  /** Find a declaration receiving a captured call result. */
+  /**
+   * Find a declaration receiving a captured call result.
+   * @param call Call expression being inspected.
+   * @param parents Lookup from AST nodes to their parents.
+   * @param parsedFile Parsed source file containing the relevant AST node.
+   * @returns The binding receiving a call result, when one exists.
+   */
   private readonly findInvocationDestination = (
     call: AstNode,
     parents: ReadonlyMap<AstNode, AstNode | null>,
@@ -469,13 +603,27 @@ export class ForwardSlicer implements IUsageSlicer {
     return this.findDeclaratorDestination(parent, parsedFile);
   };
 
-  /** Enqueue direct and transitive importer aliases for an exported seed. */
+  /**
+   * Enqueue direct and transitive importer aliases for an exported seed.
+   * @param seed Binding selected for forward usage tracking.
+   * @param parsedFile Parsed source file containing the relevant AST node.
+   * @param sourceNode Usage node from which importer hops begin.
+   * @param parsedFiles Parsed files supplied for the traversal.
+   * @param queue Pending imported bindings to scan.
+   * @param addNode Callback that creates or reuses a usage node.
+   * @param addEdge Callback that records a relationship between usage nodes.
+   */
   private readonly enqueueImporters = (
     seed: UsageSeed,
     parsedFile: ParsedFile,
     sourceNode: UsageNode,
     parsedFiles: Map<AbsolutePath, ParsedFile>,
-    queue: Array<{ seed: UsageSeed; addStart: boolean }>,
+    queue: Array<{
+      /** Imported binding to scan after crossing the module boundary. */
+      seed: UsageSeed;
+      /** Whether to add a start-point node for the queued binding. */
+      addStart: boolean;
+    }>,
     addNode: (
       file: AbsolutePath,
       node: AstNode,
@@ -535,13 +683,23 @@ export class ForwardSlicer implements IUsageSlicer {
     }
   };
 
-  /** Find a file in the caller map or parser cache. */
+  /**
+   * Find a file in the caller map or parser cache.
+   * @param file Absolute path of the requested parsed file.
+   * @param parsedFiles Parsed files supplied for the traversal.
+   * @returns The parsed file from the caller map or cache, or null if absent.
+   */
   private readonly getParsedFile = (
     file: AbsolutePath,
     parsedFiles: Map<AbsolutePath, ParsedFile>,
   ): ParsedFile | null => parsedFiles.get(file) ?? this.parser.getCache().get(file) ?? null;
 
-  /** Locate the top-level export boundary containing a local binding. */
+  /**
+   * Locate the top-level export boundary containing a local binding.
+   * @param ast Parsed program or AST root to inspect.
+   * @param name Local binding name to find in an export statement.
+   * @returns The top-level export statement containing the binding, or null.
+   */
   private readonly findExportBoundary = (ast: AstNode, name: SourceText): AstNode | null => {
     if (ast.type !== "Program") {
       return null;
@@ -556,11 +714,21 @@ export class ForwardSlicer implements IUsageSlicer {
     );
   };
 
-  /** Locate an import or re-export statement and its local binding, if any. */
+  /**
+   * Locate an import or re-export statement and its local binding, if any.
+   * @param ast Parsed program or AST root to inspect.
+   * @param alias Local alias introduced by an import.
+   * @returns The import boundary and local binding for the alias, or null.
+   */
   private readonly findImportBoundary = (
     ast: AstNode,
     alias: SourceText,
-  ): { boundary: AstNode; bindingNode: AstNode | null } | null => {
+  ): {
+    /** Import or re-export statement containing the local alias. */
+    boundary: AstNode;
+    /** Local binding introduced by the boundary, if one exists. */
+    bindingNode: AstNode | null;
+  } | null => {
     if (ast.type !== "Program") {
       return null;
     }
@@ -608,12 +776,22 @@ export class ForwardSlicer implements IUsageSlicer {
     return null;
   };
 
-  /** Build scopes for a parsed file. */
+  /**
+   * Build scopes for a parsed file.
+   * @param parsedFile Parsed source file containing the relevant AST node.
+   * @returns Lexical scopes built for the parsed file.
+   */
   private readonly buildScopesFor = (parsedFile: ParsedFile) =>
     // The shared scope builder is kept behind this method to centralize call-site resolution.
     this.referenceFinderScopes(parsedFile);
 
-  /** Resolve a name from the shared lexical scope list. */
+  /**
+   * Resolve a name from the shared lexical scope list.
+   * @param name Binding name to resolve in the provided scopes.
+   * @param node Reference node used to select containing scopes.
+   * @param scopes Lexical scopes available for name lookup.
+   * @returns The binding and owning scope for the name, or null when unresolved.
+   */
   private readonly resolveName = (name: SourceText, node: AstNode, scopes: Scope[]) => {
     const candidates = scopes
       .filter((scope) => scope.node.start <= node.start && scope.node.end >= node.end)
@@ -627,13 +805,22 @@ export class ForwardSlicer implements IUsageSlicer {
     return null;
   };
 
-  /** Resolve scopes through the shared lexical scope implementation. */
+  /**
+   * Resolve scopes through the shared lexical scope implementation.
+   * @param parsedFile Parsed source file containing the relevant AST node.
+   * @returns Lexical scopes built by the shared scope helper.
+   */
   private readonly referenceFinderScopes = (parsedFile: ParsedFile) => {
     // Importing the helper here avoids a second scope implementation in the slicer.
     return buildScopes(parsedFile.ast);
   };
 
-  /** Check whether one scope is contained by another. */
+  /**
+   * Check whether one scope is contained by another.
+   * @param inner Candidate scope node to test for containment.
+   * @param outer Scope node that may contain the candidate.
+   * @returns True when the inner node's range is contained by the outer node.
+   */
   private readonly isWithinScope = (inner: AstNode, outer: AstNode): boolean =>
     inner.start >= outer.start && inner.end <= outer.end;
 }

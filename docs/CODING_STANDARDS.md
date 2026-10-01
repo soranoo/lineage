@@ -405,10 +405,10 @@ class IgnoreFilter { ... }
 #### Every method and callable helper
 
 This includes public and private class methods, arrow properties, exported functions, and local arrow helpers inside methods. A summary-only `/** ... */` comment is not enough, even though it uses JSDoc delimiters. Use a multiline
-JSDoc block that explains the behavior, has one `@param` for every parameter (including optional ones), an `@returns` describing the result (including `void`), and an `@throws` for each expected thrown error. Update existing JSDoc when a method's behavior changes so its description remains accurate.
+JSDoc block that explains the behavior, has one `@param` for every parameter (including optional ones), an `@returns` describing the result (excluding `void`), and an `@throws` for each expected thrown error. Update existing JSDoc when a method's behavior changes so its description remains accurate.
 
 ```ts
-// banned - omits parameter and return documentation
+// banned - omits parameter documentation
 /** Follow one statically named CommonJS import to its export declaration. */
 const processRequireSite = (
   site: CommonJsRequireSite,

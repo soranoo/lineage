@@ -71,7 +71,11 @@ export class UsageTracker {
     };
   };
 
-  /** Parse the entry when it was outside the indexer's configured file set. */
+  /**
+   * Parse the entry when it was outside the indexer's configured file set.
+   * @param entryFile Absolute path of the tracking entry file.
+   * @returns Parsed files containing the requested entry, using the shared parser cache.
+   */
   private readonly ensureEntryParsed = (entryFile: AbsolutePath): Map<AbsolutePath, ParsedFile> => {
     const parsedFiles = this.parser.getCache();
 

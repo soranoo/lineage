@@ -1,3 +1,5 @@
+import { walkAst } from "@/helpers";
+import { BindingResolver } from "@/slice/BindingResolver";
 import type {
   AbsolutePath,
   AstNode,
@@ -11,9 +13,6 @@ import type {
   SourceText,
 } from "@/types";
 import type { AssignmentExpression, CallExpression } from "@oxc-project/types";
-
-import { walkAst } from "@/helpers";
-import { BindingResolver } from "@/slice/BindingResolver";
 
 /**
  * Detects dynamic patterns that require conservative handling.
@@ -163,7 +162,13 @@ export class DynamicPatternDetector {
    * @returns True when the key is known without evaluating arbitrary code.
    */
   private readonly hasStaticPropertyKey = (
-    node: Extract<AstNode, { type: "MemberExpression" }>,
+    node: Extract<
+      AstNode,
+      {
+        /** AST discriminant for a member expression. */
+        type: "MemberExpression";
+      }
+    >,
     parsedFile: ParsedFile | undefined,
   ): boolean => {
     if (node.property.type === "Literal") {
@@ -190,11 +195,18 @@ export class DynamicPatternDetector {
    *
    * @param kind Issue kind to emit.
    * @param node AST node providing the issue span.
+   * @param node.start Start offset of the issue node.
+   * @param node.end End offset of the issue node.
    * @param file Absolute path of the file containing the issue.
    */
   private readonly emitIssue = (
     kind: IssueKind,
-    node: { start: CharOffset; end: CharOffset },
+    node: {
+      /** Inclusive start offset of the issue. */
+      start: CharOffset;
+      /** Exclusive end offset of the issue. */
+      end: CharOffset;
+    },
     file: AbsolutePath,
   ): void => {
     const range: OffsetRange = { start: node.start, end: node.end };

@@ -1,12 +1,17 @@
 import type { IParser } from "@/parse";
+import { OxcParser } from "@/parse";
 import type { ImportGraph } from "@/project";
 import { ProjectIndexer } from "@/project";
 import { IgnoreFilter, OxcResolver, ProjectFileScanner, VirtualAwareResolver } from "@/resolve";
 import type { IResolver } from "@/resolve";
 import type { AbsolutePath, SourceText, TrackerConfig, UsageTrackerConfig } from "@/types";
-import { OxcParser } from "@/parse";
 import { InvalidVirtualPathError } from "@/types";
 
+/**
+ * Validate virtual file paths and copy their source text into a map.
+ * @param virtualFiles In-memory source files keyed by absolute path.
+ * @returns A validated map of virtual paths to source text.
+ */
 const toVirtualFileMap = (
   virtualFiles: Record<AbsolutePath, SourceText> | undefined,
 ): Map<AbsolutePath, SourceText> => {
@@ -23,6 +28,11 @@ const toVirtualFileMap = (
   return map;
 };
 
+/**
+ * Convert the virtual file map back to a path-keyed source record.
+ * @param virtualFiles In-memory source files keyed by absolute path.
+ * @returns A record of virtual source text keyed by absolute path.
+ */
 const toVirtualFileRecord = (
   virtualFiles: ReadonlyMap<AbsolutePath, SourceText>,
 ): Record<AbsolutePath, SourceText> => Object.fromEntries(virtualFiles);
@@ -116,7 +126,8 @@ export class ProjectContext {
 
   /**
    * Build a stable key for one bounded project-index configuration.
-   * @param config
+   * @param config Project root, files, virtual sources, and ignore patterns used for indexing.
+   * @returns A stable key for the project's indexing inputs.
    */
   private readonly createGraphCacheKey = (config: UsageTrackerConfig): SourceText =>
     JSON.stringify({

@@ -1,7 +1,13 @@
 import { readFileSync } from "node:fs";
 
-import { assertNever } from "assert-never";
-
+import { MagicStringEditor } from "@/edit";
+import { moduleCallKey, tryResolveModuleCall, walkAst } from "@/helpers";
+import { collectSpecifiers } from "@/helpers/module-boundary";
+import { DynamicPatternDetector, IssueCollector } from "@/issues";
+import { IntraFunctionShaker } from "@/shake";
+import { BackwardSlicer } from "@/slice";
+import { ProjectContext } from "@/tracker/ProjectContext";
+import { assembleSlicedOutput, isDependencyNodeKeepWorthy } from "@/tracker/sliceOutput";
 import type {
   AbsolutePath,
   IEditor,
@@ -18,14 +24,7 @@ import type {
   TrackResult,
   TrackerConfig,
 } from "@/types";
-import { MagicStringEditor } from "@/edit";
-import { moduleCallKey, tryResolveModuleCall, walkAst } from "@/helpers";
-import { collectSpecifiers } from "@/helpers/module-boundary";
-import { DynamicPatternDetector, IssueCollector } from "@/issues";
-import { IntraFunctionShaker } from "@/shake";
-import { BackwardSlicer } from "@/slice";
-import { ProjectContext } from "@/tracker/ProjectContext";
-import { assembleSlicedOutput, isDependencyNodeKeepWorthy } from "@/tracker/sliceOutput";
+import { assertNever } from "assert-never";
 
 /**
  * Optional dependency overrides for constructing a DependencyTracker.
@@ -82,7 +81,8 @@ export class DependencyTracker {
    * Create a dependency tracker with default implementations or injected fakes.
    *
    * @param config Tracker configuration for resolver and ignore behavior.
-   * @param dependencies Optional dependency overrides used by tests.
+   * @param dependenciesOrContext Dependency overrides or a shared project context.
+   * @param context Shared project context used by this tracker.
    */
   constructor(
     config: TrackerConfig = {},

@@ -85,7 +85,12 @@ export class ProjectIndexer {
     return graph;
   };
 
-  /** Parse a virtual source or read and parse a real file. */
+  /**
+   * Parse a virtual source or read and parse a real file.
+   * @param filePath Absolute path of the file to process.
+   * @param virtualFiles In-memory source files keyed by absolute path.
+   * @returns The parsed virtual source or file contents.
+   */
   private readonly parseFile = (
     filePath: AbsolutePath,
     virtualFiles?: Record<AbsolutePath, SourceText>,
@@ -95,7 +100,13 @@ export class ProjectIndexer {
     return this.parser.parse(filePath, source);
   };
 
-  /** Index the module-boundary statements in one parsed file. */
+  /**
+   * Index the module-boundary statements in one parsed file.
+   * @param parsedFile Parsed source file containing the relevant AST node.
+   * @param visible Whether the importing or re-exporting file is visible in queries.
+   * @param graph Reverse-import graph to update.
+   * @param exportsByFile Known exported bindings indexed by file path.
+   */
   private readonly indexModule = (
     parsedFile: ParsedFile,
     visible: boolean,
@@ -144,7 +155,15 @@ export class ProjectIndexer {
     }
   };
 
-  /** Index an ordinary import, expanding known namespace exports. */
+  /**
+   * Index an ordinary import, expanding known namespace exports.
+   * @param importerFile Absolute path of the importing module.
+   * @param entry Import boundary containing the requested source name and local alias.
+   * @param sourceFile Absolute path of the source module.
+   * @param visible Whether the importing or re-exporting file is visible in queries.
+   * @param graph Reverse-import graph to update.
+   * @param exportsByFile Known exported bindings indexed by file path.
+   */
   private readonly addImportEntries = (
     importerFile: AbsolutePath,
     entry: ModuleBoundaryImport,
@@ -163,7 +182,14 @@ export class ProjectIndexer {
     }
   };
 
-  /** Index one re-export that points at another module. */
+  /**
+   * Index one re-export that points at another module.
+   * @param reExporterFile Absolute path of the re-exporting module.
+   * @param entry Re-export boundary containing the source and exposed names.
+   * @param sourceFile Absolute path of the source module.
+   * @param visible Whether the importing or re-exporting file is visible in queries.
+   * @param graph Reverse-import graph to update.
+   */
   private readonly addReExportEntry = (
     reExporterFile: AbsolutePath,
     entry: ModuleBoundaryImport,
@@ -185,7 +211,12 @@ export class ProjectIndexer {
     );
   };
 
-  /** Resolve known names for a namespace import, or preserve its wildcard. */
+  /**
+   * Resolve known names for a namespace import, or preserve its wildcard.
+   * @param sourceFile Absolute path of the source module.
+   * @param exportsByFile Known exported bindings indexed by file path.
+   * @returns Known exported names, or a wildcard when none can be enumerated.
+   */
   private readonly namespaceExportNames = (
     sourceFile: AbsolutePath,
     exportsByFile: ReadonlyMap<AbsolutePath, ExportedBinding[]>,
@@ -196,7 +227,12 @@ export class ProjectIndexer {
     return names.length > 0 ? [...new Set(names)] : ["*"];
   };
 
-  /** Build a stable key from the scanned paths and virtual source contents. */
+  /**
+   * Build a stable key from the scanned paths and virtual source contents.
+   * @param files Scanned absolute file paths.
+   * @param virtualFiles In-memory source files keyed by absolute path.
+   * @returns A stable key for the scanned files and virtual source contents.
+   */
   private readonly createCacheKey = (
     files: AbsolutePath[],
     virtualFiles?: Record<AbsolutePath, SourceText>,

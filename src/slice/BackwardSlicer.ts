@@ -1,7 +1,3 @@
-import { assertNever } from "assert-never";
-import type { CallExpression } from "@oxc-project/types";
-import { visitorKeys } from "oxc-parser";
-
 import { isAstNode, moduleCallKey, tryResolveModuleCall, walkAst } from "@/helpers";
 import {
   collectExports,
@@ -10,7 +6,6 @@ import {
 } from "@/helpers/module-boundary";
 import { BindingResolver } from "@/slice/BindingResolver";
 import { SeedExpander } from "@/slice/SeedExpander";
-
 import type {
   AbsolutePath,
   AstNode,
@@ -35,8 +30,10 @@ import type {
   SourceText,
 } from "@/types";
 import type { IParser, IResolver, IShaker } from "@/types";
-
 import { StartPointNotFoundError } from "@/types";
+import type { CallExpression } from "@oxc-project/types";
+import { assertNever } from "assert-never";
+import { visitorKeys } from "oxc-parser";
 
 /**
  * Work item representing a named binding lookup.
@@ -220,7 +217,12 @@ const isSeedNode = (node: AstNode): node is SeedNode =>
 const findSeedNode = (
   parsedFile: ParsedFile,
   startPoint: OffsetRange,
-): { seedNode: SeedNode; subExprRange: OffsetRange | null } => {
+): {
+  /** Statement or expression selected as the slice seed. */
+  seedNode: SeedNode;
+  /** Selected range inside the seed node, when the request targets a sub-expression. */
+  subExprRange: OffsetRange | null;
+} => {
   const root = parsedFile.ast;
   const innerNode = findSmallestContainingNode(root, startPoint);
 
@@ -285,6 +287,11 @@ const walkAstWithSkip = (
 ): void => {
   const seen = new Set<AstNode>();
 
+  /**
+   * Visit each node once while allowing selected subtrees to be skipped.
+   * @param node Current node in the subtree traversal.
+   * @param parent Parent AST node, when one exists.
+   */
   const traverse = (node: AstNode, parent: AstNode | null): void => {
     if (seen.has(node)) {
       return;
@@ -1029,6 +1036,8 @@ export class BackwardSlicer {
    * @param resolver Resolver used for import bindings.
    * @param shaker Shaker used for intra-function pruning.
    * @param collector Issue collector to receive slice issues.
+   * @param moduleResolutionPlugins Plugins that resolve nonstandard module calls.
+   * @param moduleResolutionCache Cached outcomes of module plugin resolution.
    */
   constructor(
     parser: IParser,
@@ -1257,7 +1266,12 @@ export class BackwardSlicer {
       importNode: AstNode,
       localName: SourceText,
       fromFile: AbsolutePath,
-    ): { result: ResolveResult; importedName: SourceText | null } => {
+    ): {
+      /** Outcome of resolving the import's source module. */
+      result: ResolveResult;
+      /** Exported name requested by the local import binding, when found. */
+      importedName: SourceText | null;
+    } => {
       if (importNode.type !== "ImportDeclaration") {
         return { result: { kind: "failed" }, importedName: null };
       }
@@ -1623,6 +1637,7 @@ export class BackwardSlicer {
      * @param targetParsed Parsed module file.
      * @param ownerNodeId Node owning the module call.
      * @param processedFiles Module files already traversed through plugins.
+     * @returns The dependency node produced for the plugin-resolved module.
      */
     const processPluginModule = (
       targetFile: AbsolutePath,
@@ -2015,7 +2030,6 @@ export class BackwardSlicer {
      * @param site The require call, containing declaration, and imported binding.
      * @param item The worklist item that led to this require site.
      * @param source Source text for the importing file.
-     * @returns Nothing; writes the resulting dependency graph into the current slice.
      */
     const processRequireSite = (
       site: CommonJsRequireSite,

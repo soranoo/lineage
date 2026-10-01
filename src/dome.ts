@@ -2,6 +2,7 @@ import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
+import { DependencyTracker, offsetFromLineCol } from "@/index";
 import type {
   AbsolutePath,
   CharOffset,
@@ -10,7 +11,6 @@ import type {
   TrackerIssue,
   TrackResult,
 } from "@/types";
-import { DependencyTracker, offsetFromLineCol } from "@/index";
 
 /**
  * Demo file descriptor used for temporary project creation.

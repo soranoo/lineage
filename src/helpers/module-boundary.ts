@@ -1,5 +1,4 @@
-import { assertNever } from "assert-never";
-
+import { walkAst } from "@/helpers/ast-walker";
 import type {
   AstNode,
   CommonJsExportSite,
@@ -13,12 +12,19 @@ import type {
   ReExportKind,
   SourceText,
 } from "@/types";
-import { walkAst } from "@/helpers/ast-walker";
+import { assertNever } from "assert-never";
 
 const DEFAULT_EXPORT: ExportedName = "default";
 const NAMESPACE_EXPORT: ExportedName = "*";
 
-const getStringLiteral = (node: AstNode | null | undefined): SourceText | null => {
+/**
+ * Return the string value of a literal node, or null for other nodes and values.
+ * @param node Candidate literal AST node, if present.
+ * @returns The literal string value, or null when the node is not a string literal.
+ */
+const getStringLiteral = (
+  node: AstNode | null | undefined,
+): SourceText | null => {
   if (node === null || node === undefined || node.type !== "Literal") {
     return null;
   }
@@ -26,6 +32,11 @@ const getStringLiteral = (node: AstNode | null | undefined): SourceText | null =
   return typeof node.value === "string" ? node.value : null;
 };
 
+/**
+ * Read an identifier or string literal used as a module export name.
+ * @param node Identifier or literal node naming the export.
+ * @returns The identifier or literal export name.
+ */
 const getModuleExportName = (node: AstNode): ExportedName => {
   if (node.type === "Identifier") {
     return node.name;
@@ -39,6 +50,11 @@ const getModuleExportName = (node: AstNode): ExportedName => {
   throw new TypeError("Module export name must be an identifier or string literal.");
 };
 
+/**
+ * Read the literal module specifier from a direct `require()` call.
+ * @param node Candidate call expression.
+ * @returns The literal require target, or null for other calls and dynamic targets.
+ */
 const getRequireSpecifier = (node: AstNode | null): ModuleSpecifier | null => {
   if (node === null) {
     return null;
@@ -56,6 +72,11 @@ const getRequireSpecifier = (node: AstNode | null): ModuleSpecifier | null => {
   return getStringLiteral(argument);
 };
 
+/**
+ * Find the identifier bound by an identifier or assignment pattern.
+ * @param node Identifier or assignment pattern introducing the binding.
+ * @returns The bound identifier name, or null for unsupported patterns.
+ */
 const getPatternIdentifier = (node: AstNode): LocalAlias | null => {
   switch (node.type) {
     case "Identifier":
@@ -67,6 +88,11 @@ const getPatternIdentifier = (node: AstNode): LocalAlias | null => {
   }
 };
 
+/**
+ * Read a member property's identifier or literal name when it is statically known.
+ * @param node Candidate member expression.
+ * @returns The known member property name, or null when it is dynamic.
+ */
 const getStaticPropertyName = (node: AstNode): ExportedName | null => {
   if (node.type !== "MemberExpression") {
     return null;
@@ -79,6 +105,11 @@ const getStaticPropertyName = (node: AstNode): ExportedName | null => {
   return node.computed ? getStringLiteral(node.property) : null;
 };
 
+/**
+ * Read the exported property name from `exports.x` or `module.exports.x`.
+ * @param node Member expression that may target a CommonJS export object.
+ * @returns The CommonJS exported property name, or null for other members.
+ */
 const getCommonJsPropertyName = (node: AstNode): ExportedName | null => {
   if (node.type !== "MemberExpression") {
     return null;
@@ -100,12 +131,22 @@ const getCommonJsPropertyName = (node: AstNode): ExportedName | null => {
   return null;
 };
 
+/**
+ * Check whether a member expression refers to `module.exports`.
+ * @param node Candidate `module.exports` member expression.
+ * @returns True when the node represents `module.exports`.
+ */
 const isModuleExportsObject = (node: AstNode): boolean =>
   node.type === "MemberExpression" &&
   node.object.type === "Identifier" &&
   node.object.name === "module" &&
   getStaticPropertyName(node) === "exports";
 
+/**
+ * Collect exported names and local bindings from an object literal.
+ * @param node Candidate object expression assigned to `module.exports`.
+ * @returns Bindings exposed by initialized properties of the object literal.
+ */
 const collectObjectExports = (node: AstNode): ExportedBinding[] => {
   if (node.type !== "ObjectExpression") {
     return [];
@@ -125,6 +166,11 @@ const collectObjectExports = (node: AstNode): ExportedBinding[] => {
   return bindings;
 };
 
+/**
+ * Collect bindings published by a CommonJS export assignment.
+ * @param node Candidate assignment expression.
+ * @returns Bindings published by the CommonJS assignment, if any.
+ */
 const collectCommonJsExports = (node: AstNode): ExportedBinding[] => {
   if (node.type !== "AssignmentExpression" || node.operator !== "=") {
     return [];
@@ -149,6 +195,11 @@ const collectCommonJsExports = (node: AstNode): ExportedBinding[] => {
   return [{ exportedName, localName: localName ?? undefined }];
 };
 
+/**
+ * Collect identifier bindings declared by a variable statement.
+ * @param node Candidate variable declaration.
+ * @returns Identifier bindings introduced by the variable declaration.
+ */
 const collectVariableExports = (node: AstNode): ExportedBinding[] => {
   if (node.type !== "VariableDeclaration") {
     return [];
@@ -165,6 +216,11 @@ const collectVariableExports = (node: AstNode): ExportedBinding[] => {
   return bindings;
 };
 
+/**
+ * Collect bindings exported by a variable, function, or class declaration.
+ * @param node Exported declaration, if the export contains one.
+ * @returns Bindings exposed by the declaration, if supported.
+ */
 const collectDeclarationExports = (node: AstNode | null): ExportedBinding[] => {
   if (node === null) {
     return [];
@@ -181,8 +237,19 @@ const collectDeclarationExports = (node: AstNode | null): ExportedBinding[] => {
   }
 };
 
+/**
+ * Convert each ESM import specifier into a module boundary entry.
+ * @param statement Import declaration whose specifiers are converted.
+ * @returns Boundary entries for the declaration's import specifiers.
+ */
 const collectImportDeclaration = (
-  statement: Extract<OxcAst["body"][number], { type: "ImportDeclaration" }>,
+  statement: Extract<
+    OxcAst["body"][number],
+    {
+      /** AST discriminant for an import declaration. */
+      type: "ImportDeclaration";
+    }
+  >,
 ): ModuleBoundaryImport[] => {
   const imports: ModuleBoundaryImport[] = [];
 
@@ -213,8 +280,19 @@ const collectImportDeclaration = (
   return imports;
 };
 
+/**
+ * Collect named re-exports that specify a source module.
+ * @param statement Named export declaration with an optional source module.
+ * @returns Boundary entries for named re-exports with a source module.
+ */
 const collectReExportDeclaration = (
-  statement: Extract<OxcAst["body"][number], { type: "ExportNamedDeclaration" }>,
+  statement: Extract<
+    OxcAst["body"][number],
+    {
+      /** AST discriminant for a named export declaration. */
+      type: "ExportNamedDeclaration";
+    }
+  >,
 ): ModuleBoundaryImport[] => {
   if (statement.source === null) {
     return [];
@@ -240,8 +318,19 @@ const collectReExportDeclaration = (
   return imports;
 };
 
+/**
+ * Represent `export *` and `export * as name` as re-export boundaries.
+ * @param statement Export-all declaration to represent as a boundary.
+ * @returns A boundary entry for the export-all or namespace re-export.
+ */
 const collectExportAllDeclaration = (
-  statement: Extract<OxcAst["body"][number], { type: "ExportAllDeclaration" }>,
+  statement: Extract<
+    OxcAst["body"][number],
+    {
+      /** AST discriminant for an export-all declaration. */
+      type: "ExportAllDeclaration";
+    }
+  >,
 ): ModuleBoundaryImport => {
   const exportedName =
     statement.exported === null ? NAMESPACE_EXPORT : getModuleExportName(statement.exported);
@@ -257,6 +346,11 @@ const collectExportAllDeclaration = (
   };
 };
 
+/**
+ * Extract static `require()` imports from variable declarations and destructured bindings.
+ * @param statement Variable declaration that may contain literal `require()` calls.
+ * @returns Boundary entries for literal require calls bound by the declaration.
+ */
 const collectRequireImports = (statement: AstNode): ModuleBoundaryImport[] => {
   if (statement.type === "ExpressionStatement") {
     return [];
@@ -327,7 +421,12 @@ export const findCommonJsRequireSites = (
   target: AstNode,
   localAlias?: LocalAlias,
 ): CommonJsRequireSite[] => {
-  const candidates: Array<{ declarator: AstNode; declaration: AstNode }> = [];
+  const candidates: Array<{
+    /** Declarator whose initializer contains the matching `require()` call. */
+    declarator: AstNode;
+    /** Variable declaration enclosing the matching declarator. */
+    declaration: AstNode;
+  }> = [];
   walkAst(ast, (node, parent) => {
     if (
       node.type === "VariableDeclarator" &&
@@ -381,7 +480,7 @@ export const findCommonJsRequireSites = (
  * such as bundle IIFEs.
  *
  * @param ast The parsed program to search.
- * @param exportedName - The exported name to find.
+ * @param exportedName The exported name to find.
  * @returns The matching export site, or `null` when no matching export exists.
  */
 export const findCommonJsExportSite = (
