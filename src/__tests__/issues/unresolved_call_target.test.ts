@@ -2,9 +2,9 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
+import type { AbsolutePath, ModuleResolutionPlugin, OffsetRange, SourceText } from "@/types";
 import { toFixturePath } from "@/__tests__/utils";
 import { DependencyTracker } from "@/index";
-import type { AbsolutePath, ModuleResolutionPlugin, OffsetRange, SourceText } from "@/types";
 
 const entryFile: AbsolutePath = "/virtual/entry.ts";
 

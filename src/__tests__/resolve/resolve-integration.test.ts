@@ -3,8 +3,8 @@ import path from "node:path";
 import { assertNever } from "assert-never";
 import { describe, expect, it } from "vitest";
 
-import { IgnoreFilter, OxcResolver } from "@/resolve";
 import type { AbsolutePath, IgnorePattern } from "@/types";
+import { IgnoreFilter, OxcResolver } from "@/resolve";
 
 const fixturesRoot: AbsolutePath = path.resolve(import.meta.dir, "../_fixtures/resolve");
 const entryFile: AbsolutePath = path.resolve(fixturesRoot, "entry.ts");

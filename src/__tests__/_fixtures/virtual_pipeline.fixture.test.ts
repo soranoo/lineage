@@ -2,9 +2,9 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import type { AbsolutePath } from "@/types";
 import { findRange } from "@/__tests__/utils";
 import { DependencyTracker } from "@/index";
-import type { AbsolutePath } from "@/types";
 
 describe("virtual pipeline fixtures", () => {
   it("matches linear chain behavior in virtual mode", async () => {

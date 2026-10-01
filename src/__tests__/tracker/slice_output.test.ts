@@ -1,7 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import { buildParsedFiles, findRange } from "@/__tests__/utils";
-import { assembleSlicedOutput, DependencyTracker } from "@/index";
 import type {
   AbsolutePath,
   DependencyNode,
@@ -11,6 +9,8 @@ import type {
   SourceText,
   UsageNode,
 } from "@/types";
+import { buildParsedFiles, findRange } from "@/__tests__/utils";
+import { assembleSlicedOutput, DependencyTracker } from "@/index";
 
 const entryFile: AbsolutePath = "/project/entry.ts";
 const dependencyFile: AbsolutePath = "/project/dependency.ts";
@@ -175,7 +175,9 @@ describe("assembleSlicedOutput", () => {
       expect(output).toContain("1: (module, exports, require) => {");
       expect(output).not.toContain("unrelated");
       expect(output).not.toContain("2: ()");
-      if (mode === "blank") expect(output?.length).toBe(source.length);
+      if (mode === "blank") {
+        expect(output?.length).toBe(source.length);
+      }
       expect(output).toBeDefined();
       if (output !== undefined) {
         expect(

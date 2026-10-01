@@ -1,5 +1,5 @@
-import type { CallExpression } from "@oxc-project/types";
 import { assertNever } from "assert-never";
+import type { CallExpression } from "@oxc-project/types";
 import { visitorKeys } from "oxc-parser";
 
 import { isAstNode, moduleCallKey, tryResolveModuleCall, walkAst } from "@/helpers";
@@ -10,6 +10,7 @@ import {
 } from "@/helpers/module-boundary";
 import { BindingResolver } from "@/slice/BindingResolver";
 import { SeedExpander } from "@/slice/SeedExpander";
+
 import type {
   AbsolutePath,
   AstNode,
@@ -34,6 +35,7 @@ import type {
   SourceText,
 } from "@/types";
 import type { IParser, IResolver, IShaker } from "@/types";
+
 import { StartPointNotFoundError } from "@/types";
 
 /**
@@ -2003,7 +2005,18 @@ export class BackwardSlicer {
       return leafNode;
     };
 
-    /** Follow one statically named CommonJS import to its export declaration. */
+    /**
+     * Add the dependencies for one statically identified CommonJS require site.
+     *
+     * Resolves the module, links its export to the importing binding, and
+     * records unresolved or ignored targets as leaf nodes with their issues.
+     * This helper mutates the current slice's nodes, edges, and issue collector.
+     *
+     * @param site The require call, containing declaration, and imported binding.
+     * @param item The worklist item that led to this require site.
+     * @param source Source text for the importing file.
+     * @returns Nothing; writes the resulting dependency graph into the current slice.
+     */
     const processRequireSite = (
       site: CommonJsRequireSite,
       item: IdentifierWorkItem,
@@ -2087,7 +2100,9 @@ export class BackwardSlicer {
         }
       } else {
         const esmExport = findExportedBinding(targetParsed, requestedName);
-        if (esmExport?.kind === "declaration") bindingNode = esmExport.node;
+        if (esmExport?.kind === "declaration") {
+          bindingNode = esmExport.node;
+        }
       }
 
       if (bindingNode === null) {
@@ -2207,7 +2222,9 @@ export class BackwardSlicer {
                 bindingResolver.resolveWithScope("require", site.call.callee, parsedFile) === null,
             );
       if (requireSites.length > 0) {
-        for (const site of requireSites) processRequireSite(site, item, parsedFile.source);
+        for (const site of requireSites) {
+          processRequireSite(site, item, parsedFile.source);
+        }
         continue;
       }
 

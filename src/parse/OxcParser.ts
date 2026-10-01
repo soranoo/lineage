@@ -2,6 +2,7 @@ import { parseSync } from "oxc-parser";
 
 import type { IParser } from "@/parse";
 import type { AbsolutePath, ParsedFile, SourceText } from "@/types";
+
 import { ParseError } from "@/types";
 
 /**

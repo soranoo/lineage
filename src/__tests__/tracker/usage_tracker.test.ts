@@ -2,9 +2,9 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import type { AbsolutePath, SourceText, UsageTrackerConfig } from "@/types";
 import { findRange, readFixtureSource, toFixturePath } from "@/__tests__/utils";
 import { ProjectContext, UsageTracker } from "@/index";
-import type { AbsolutePath, SourceText, UsageTrackerConfig } from "@/types";
 import { StartPointNotFoundError } from "@/types";
 
 const entryFile: AbsolutePath = "/virtual/entry.ts";

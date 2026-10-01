@@ -1,4 +1,3 @@
-import type { CallExpression } from "@oxc-project/types";
 import assertNever from "assert-never";
 
 import type {
@@ -8,6 +7,7 @@ import type {
   ModuleResolutionResult,
   SourceText,
 } from "@/types";
+import type { CallExpression } from "@oxc-project/types";
 
 /**
  * Collect primitive literal arguments from a module-resolution call.

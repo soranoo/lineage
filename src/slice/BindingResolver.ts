@@ -1,8 +1,7 @@
-import assertNever from "assert-never";
-
 import { isAstNode, walkAst } from "@/helpers";
 import { buildScopes } from "@/helpers/scope";
 import type { AstNode, LiteralValue, ParsedFile, Scope, ScopeKind, SourceText } from "@/types";
+import assertNever from "assert-never";
 
 /**
  * Function-like nodes that introduce function scopes.
@@ -107,6 +106,7 @@ export class BindingResolver {
    * @param expression Expression whose value should be inspected.
    * @param scopeNode AST node providing the lookup scope.
    * @param parsedFile Parsed file containing the expression.
+   * @param resolving
    * @returns Literal values known without evaluating arbitrary code.
    */
   private readonly resolveStaticValues = (

@@ -30,6 +30,7 @@
   },
   "dependencies": {
     "assert-never": "^1.4.0",
+    "eslint-plugin-jsdoc": "^65.0.1",
     "magic-string": "^0.30.21",
     "neverthrow": "^8.2.0",
     "oxc-parser": "^0.131.0",

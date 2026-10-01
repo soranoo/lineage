@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import type { AstNode, ParsedFile, SourceText } from "@/types";
 import { findNode, parseSource } from "@/__tests__/utils";
 import { walkAst } from "@/helpers";
-import type { AstNode, ParsedFile, SourceText } from "@/types";
 import { ReferenceFinder } from "@/usage/ReferenceFinder";
 
 const findFunction = (parsedFile: ParsedFile, name: SourceText): AstNode =>

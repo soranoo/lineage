@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
+import type { AbsolutePath, AstNode, ParsedFile, SourceText } from "@/types";
 import { walkAst } from "@/helpers";
 import { DynamicPatternDetector, IssueCollector } from "@/issues";
 import { OxcParser } from "@/parse";
 import { BindingResolver } from "@/slice/BindingResolver";
-import type { AbsolutePath, AstNode, ParsedFile, SourceText } from "@/types";
 
 const file: AbsolutePath = "/project/src/entry.ts";
 

@@ -1,7 +1,7 @@
 import { assertNever } from "assert-never";
 
-import { walkAst } from "@/helpers";
 import type { AstNode, OffsetRange, SeedNode, SourceText } from "@/types";
+import { walkAst } from "@/helpers";
 
 /**
  * Check whether the node falls fully within a sub-expression range.

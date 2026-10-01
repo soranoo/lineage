@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import { IssueCollector } from "@/issues";
 import type {
   AbsolutePath,
   IssueKind,
@@ -9,6 +8,7 @@ import type {
   OffsetRange,
   TrackerIssue,
 } from "@/types";
+import { IssueCollector } from "@/issues";
 
 const file: AbsolutePath = "/project/src/issue.ts";
 const range: OffsetRange = { start: 0, end: 1 };

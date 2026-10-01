@@ -1,11 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import { FakeParser } from "@/__tests__/_fakes/FakeParser";
-import { FakeResolver } from "@/__tests__/_fakes/FakeResolver";
-import { FakeShaker } from "@/__tests__/_fakes/FakeShaker";
-import { buildNodeId, buildParsedFiles, findNode, hasEdge, toRange } from "@/__tests__/utils";
-import { IssueCollector } from "@/issues";
-import { BackwardSlicer } from "@/slice";
 import type {
   AbsolutePath,
   AstNode,
@@ -14,6 +8,12 @@ import type {
   ResolveResult,
   SourceText,
 } from "@/types";
+import { FakeParser } from "@/__tests__/_fakes/FakeParser";
+import { FakeResolver } from "@/__tests__/_fakes/FakeResolver";
+import { FakeShaker } from "@/__tests__/_fakes/FakeShaker";
+import { buildNodeId, buildParsedFiles, findNode, hasEdge, toRange } from "@/__tests__/utils";
+import { IssueCollector } from "@/issues";
+import { BackwardSlicer } from "@/slice";
 
 type ReturnStatementNode = AstNode & { type: "ReturnStatement" };
 type VariableDeclarationNode = AstNode & { type: "VariableDeclaration" };

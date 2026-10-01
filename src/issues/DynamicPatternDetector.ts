@@ -1,7 +1,3 @@
-import type { AssignmentExpression, CallExpression } from "@oxc-project/types";
-
-import { walkAst } from "@/helpers";
-import { BindingResolver } from "@/slice/BindingResolver";
 import type {
   AbsolutePath,
   AstNode,
@@ -14,6 +10,10 @@ import type {
   ParsedFile,
   SourceText,
 } from "@/types";
+import type { AssignmentExpression, CallExpression } from "@oxc-project/types";
+
+import { walkAst } from "@/helpers";
+import { BindingResolver } from "@/slice/BindingResolver";
 
 /**
  * Detects dynamic patterns that require conservative handling.

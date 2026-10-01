@@ -3,8 +3,8 @@ import path from "node:path";
 import { assertNever } from "assert-never";
 import { describe, expect, it, vi } from "vitest";
 
-import { IgnoreFilter, OxcResolver, VirtualAwareResolver } from "@/resolve";
 import type { AbsolutePath, ResolutionTier, ResolveResult } from "@/types";
+import { IgnoreFilter, OxcResolver, VirtualAwareResolver } from "@/resolve";
 import { InvalidVirtualPathError } from "@/types";
 
 const fixturesRoot: AbsolutePath = path.resolve(import.meta.dir, "../_fixtures/resolve");

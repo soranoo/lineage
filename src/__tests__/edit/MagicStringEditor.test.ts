@@ -2,9 +2,9 @@ import { assertNever } from "assert-never";
 import MagicString from "magic-string";
 import { describe, expect, it } from "vitest";
 
+import type { CharOffset, OffsetRange, SourceText } from "@/types";
 import { findRange } from "@/__tests__/utils";
 import { MagicStringEditor } from "@/edit";
-import type { CharOffset, OffsetRange, SourceText } from "@/types";
 
 /**
  * Build an OffsetRange with the provided bounds.

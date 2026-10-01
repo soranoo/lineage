@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { buildParsedFile } from "@/__tests__/utils";
 import type { IParser } from "@/parse";
 import type { AbsolutePath, ParsedFile, SourceText } from "@/types";
+import { buildParsedFile } from "@/__tests__/utils";
 
 /**
  * Minimal parser implementation used for interface checks.

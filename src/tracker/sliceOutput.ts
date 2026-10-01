@@ -1,9 +1,10 @@
 import { assertNever } from "assert-never";
 import MagicString from "magic-string";
 
-import { MagicStringEditor } from "@/edit";
 import type { IEditor } from "@/edit";
+import { MagicStringEditor } from "@/edit";
 import { walkAst } from "@/helpers";
+
 import type {
   AbsolutePath,
   AstNode,

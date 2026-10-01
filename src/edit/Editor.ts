@@ -1,6 +1,6 @@
+import type { OffsetRange, OutputMode, SourceText } from "@/types";
 import type MagicString from "magic-string";
 
-import type { OffsetRange, OutputMode, SourceText } from "@/types";
 
 /**
  * Edits a MagicString based on keep/remove ranges.

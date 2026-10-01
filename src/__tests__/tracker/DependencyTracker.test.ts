@@ -5,12 +5,6 @@ import path from "node:path";
 import MagicString from "magic-string";
 import { describe, expect, it } from "vitest";
 
-import { FakeParser } from "@/__tests__/_fakes/FakeParser";
-import { FakeResolver } from "@/__tests__/_fakes/FakeResolver";
-import { FakeShaker } from "@/__tests__/_fakes/FakeShaker";
-import { offsetFromLineCol } from "@/helpers";
-import { IssueCollector } from "@/issues";
-import { OxcParser } from "@/parse";
 import type {
   AbsolutePath,
   CharOffset,
@@ -27,6 +21,12 @@ import type {
   TrackRequest,
   TrackResult,
 } from "@/types";
+import { FakeParser } from "@/__tests__/_fakes/FakeParser";
+import { FakeResolver } from "@/__tests__/_fakes/FakeResolver";
+import { FakeShaker } from "@/__tests__/_fakes/FakeShaker";
+import { offsetFromLineCol } from "@/helpers";
+import { IssueCollector } from "@/issues";
+import { OxcParser } from "@/parse";
 import { StartPointNotFoundError } from "@/types";
 import { InvalidVirtualPathError } from "@/types";
 import { CyclicResolutionError as CyclicResolutionErrorClass } from "@/types";

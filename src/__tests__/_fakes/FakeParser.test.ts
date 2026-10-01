@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { buildParsedFile } from "@/__tests__/utils";
 import type { AbsolutePath, ParsedFile, SourceText } from "@/types";
+import { buildParsedFile } from "@/__tests__/utils";
 import { ParseError } from "@/types";
 
 import { FakeParser } from "./FakeParser";

@@ -1,8 +1,8 @@
 import { assertNever } from "assert-never";
 import { visitorKeys } from "oxc-parser";
 
-import { isAstNode, walkAst } from "@/helpers/ast-walker";
 import type { AstNode, Scope, SourceText } from "@/types";
+import { isAstNode, walkAst } from "@/helpers/ast-walker";
 
 /**
  * Create an empty scope for an AST container.

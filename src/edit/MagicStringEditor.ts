@@ -1,8 +1,9 @@
 import { assertNever } from "assert-never";
-import MagicString from "magic-string";
+
 
 import type { IEditor } from "@/edit";
 import type { CharOffset, OffsetRange, OutputMode, SourceText } from "@/types";
+import type MagicString from "magic-string";
 
 /**
  * Sort ranges descending by start offset.

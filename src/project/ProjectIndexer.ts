@@ -2,7 +2,6 @@ import { readFileSync } from "node:fs";
 
 import { assertNever } from "assert-never";
 
-import { collectExports, collectImports, collectSpecifiers } from "@/helpers/module-boundary";
 import type { IParser } from "@/parse";
 import { ImportGraph } from "@/project/ImportGraph";
 import type { IResolver } from "@/resolve";
@@ -18,6 +17,7 @@ import type {
   SourceText,
   UsageTrackerConfig,
 } from "@/types";
+import { collectExports, collectImports, collectSpecifiers } from "@/helpers/module-boundary";
 
 /**
  * Builds a cacheable reverse-import graph from a bounded project file set.

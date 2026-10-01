@@ -12,7 +12,6 @@
   - [Path Alias](#path-alias---src)
   - [Import Order](#import-order)
 - [📐 Language Rules](#-language-rules)
-  - [No `any`](#no-any)
   - [Arrow Functions Only](#arrow-functions-only-applicable-to-typescript-files-only)
   - [No `as` Type Assertions](#no-as-type-assertions)
   - [Type Aliases for Primitives](#type-aliases-for-primitives)
@@ -96,21 +95,6 @@ Additional rules:
 ---
 
 ## 📐 Language Rules
-
-### No `any`
-
-TypeScript's `any` type is banned. Use `unknown` for truly opaque values and narrow explicitly. If a type is missing, add it to `src/types.ts`.
-
-```ts
-// banned
-const parse = (input: any) => { ... };
-
-// correct
-const parse = (input: unknown) => {
-  if (typeof input !== "string") throw new TypeError("...");
-  ...
-};
-```
 
 ### Arrow Functions Only (Applicable to TypeScript Files Only)
 
@@ -418,15 +402,28 @@ State the single responsibility and any important constraints:
 class IgnoreFilter { ... }
 ```
 
-#### Every method and arrow property on a class
+#### Every method and callable helper
 
-Included both public and private methods. State the purpose, parameters, return value, and any thrown errors:
+This includes public and private class methods, arrow properties, exported functions, and local arrow helpers inside methods. A summary-only `/** ... */` comment is not enough, even though it uses JSDoc delimiters. Use a multiline
+JSDoc block that explains the behavior, has one `@param` for every parameter (including optional ones), an `@returns` describing the result (including `void`), and an `@throws` for each expected thrown error. Update existing JSDoc when a method's behavior changes so its description remains accurate.
+
+```ts
+// banned - omits parameter and return documentation
+/** Follow one statically named CommonJS import to its export declaration. */
+const processRequireSite = (
+  site: CommonJsRequireSite,
+  item: IdentifierWorkItem,
+  source: SourceText,
+): void => { ... };
+```
+
+Document the purpose and contract in the standard form:
 
 ```ts
 /**
  * Returns the first pattern that matches `absolutePath`, or `null` if none match.
  *
- * @param absolutePath - The absolute file path to test against the compiled patterns.
+ * @param absolutePath The absolute file path to test against the compiled patterns.
  * @returns The first matching ignore pattern, or `null` if no pattern matches.
  */
 readonly match = (absolutePath: AbsolutePath): IgnorePattern | null => { ... };

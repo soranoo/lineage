@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { ImportGraph } from "@/project/ImportGraph";
 import type { AbsolutePath, ExportedName, LocalAlias } from "@/types";
+import { ImportGraph } from "@/project/ImportGraph";
 
 const sourceFile: AbsolutePath = "/project/source.ts";
 const exportedName: ExportedName = "value";

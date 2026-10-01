@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import type { AstNode, SourceText } from "@/types";
 import { findNode, parseSource } from "@/__tests__/utils";
 import { walkAst } from "@/helpers";
 import { BindingResolver } from "@/slice";
-import type { AstNode, SourceText } from "@/types";
 
 /**
  * Determine whether an identifier is a reference rather than a binding.

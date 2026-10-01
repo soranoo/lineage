@@ -2,9 +2,9 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import type { AbsolutePath, OffsetRange, SourceText, UsageNode } from "@/types";
 import { findRange, readFixtureSource, toFixturePath } from "@/__tests__/utils";
 import { DependencyTracker, UsageTracker } from "@/index";
-import type { AbsolutePath, OffsetRange, SourceText, UsageNode } from "@/types";
 
 const createFixtureTracker = (relativeEntryFile: SourceText): UsageTracker =>
   new UsageTracker({

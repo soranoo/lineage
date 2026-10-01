@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import type { AbsolutePath, OutputMode, SourceText, TrackResult } from "@/types";
 import { findRange, readFixtureSource, toFixturePath } from "@/__tests__/utils";
 import { DependencyTracker } from "@/index";
-import type { AbsolutePath, OutputMode, SourceText, TrackResult } from "@/types";
 
 /**
  * Create a whitespace-only string of the same length as the input.

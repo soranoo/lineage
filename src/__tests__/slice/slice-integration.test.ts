@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import type { AbsolutePath, AstNode, ParsedFile, ResolveResult, SourceText } from "@/types";
 import { FakeParser } from "@/__tests__/_fakes/FakeParser";
 import { FakeResolver } from "@/__tests__/_fakes/FakeResolver";
 import { FakeShaker } from "@/__tests__/_fakes/FakeShaker";
@@ -7,7 +8,6 @@ import { buildNodeId, buildParsedFiles, findNode, hasEdge, toRange } from "@/__t
 import { isAstNode } from "@/helpers";
 import { IssueCollector } from "@/issues";
 import { BackwardSlicer } from "@/slice";
-import type { AbsolutePath, AstNode, ParsedFile, ResolveResult, SourceText } from "@/types";
 
 type ReturnStatementNode = AstNode & { type: "ReturnStatement" };
 type FunctionDeclarationNode = AstNode & {

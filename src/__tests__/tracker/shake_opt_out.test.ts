@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import type { AbsolutePath, SourceText, TrackRequest, TrackResult } from "@/types";
 import { DependencyTracker } from "@/index";
 import { OxcParser } from "@/parse";
-import type { AbsolutePath, SourceText, TrackRequest, TrackResult } from "@/types";
 
 const entryFile: AbsolutePath = "/project/main.js";
 const source: SourceText = [

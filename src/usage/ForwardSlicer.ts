@@ -1,9 +1,9 @@
 import { assertNever } from "assert-never";
 
+import type { IParser } from "@/parse";
 import { walkAst } from "@/helpers";
 import { collectExports } from "@/helpers/module-boundary";
 import { buildScopes, resolveBindingInScopes } from "@/helpers/scope";
-import type { IParser } from "@/parse";
 import type { IProjectIndex } from "@/project";
 import type {
   AbsolutePath,
@@ -23,9 +23,11 @@ import type {
   UsageSeed,
   UsageSliceResult,
 } from "@/types";
+
 import { StartPointNotFoundError } from "@/types";
 import { ReferenceFinder } from "@/usage/ReferenceFinder";
 import { UsageSeedExpander } from "@/usage/UsageSeedExpander";
+
 import type { IUsageSlicer } from "@/usage/UsageSlicer";
 
 const DEFAULT_USAGE_NODE_LIMIT: UsageNodeLimit = 10_000;

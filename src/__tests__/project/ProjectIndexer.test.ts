@@ -2,13 +2,13 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import type { AbsolutePath, ImporterEntry, SourceText, UsageTrackerConfig } from "@/types";
 import { OxcParser } from "@/parse/OxcParser";
 import { ProjectIndexer } from "@/project/ProjectIndexer";
 import { IgnoreFilter } from "@/resolve/IgnoreFilter";
 import { OxcResolver } from "@/resolve/OxcResolver";
 import { ProjectFileScanner } from "@/resolve/ProjectFileScanner";
 import { VirtualAwareResolver } from "@/resolve/VirtualAwareResolver";
-import type { AbsolutePath, ImporterEntry, SourceText, UsageTrackerConfig } from "@/types";
 
 const fixtureRoot: AbsolutePath = path.resolve("src/__tests__/_fixtures/usage/fanout");
 

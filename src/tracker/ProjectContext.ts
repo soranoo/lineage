@@ -1,9 +1,10 @@
-import { OxcParser } from "@/parse";
 import type { IParser } from "@/parse";
-import { ImportGraph, ProjectIndexer } from "@/project";
+import type { ImportGraph } from "@/project";
+import { ProjectIndexer } from "@/project";
 import { IgnoreFilter, OxcResolver, ProjectFileScanner, VirtualAwareResolver } from "@/resolve";
 import type { IResolver } from "@/resolve";
 import type { AbsolutePath, SourceText, TrackerConfig, UsageTrackerConfig } from "@/types";
+import { OxcParser } from "@/parse";
 import { InvalidVirtualPathError } from "@/types";
 
 const toVirtualFileMap = (
@@ -113,7 +114,10 @@ export class ProjectContext {
     return graph;
   };
 
-  /** Build a stable key for one bounded project-index configuration. */
+  /**
+   * Build a stable key for one bounded project-index configuration.
+   * @param config
+   */
   private readonly createGraphCacheKey = (config: UsageTrackerConfig): SourceText =>
     JSON.stringify({
       projectRoot: config.projectRoot,

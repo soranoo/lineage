@@ -2,14 +2,6 @@ import { readFileSync } from "node:fs";
 
 import { assertNever } from "assert-never";
 
-import { MagicStringEditor } from "@/edit";
-import { moduleCallKey, tryResolveModuleCall, walkAst } from "@/helpers";
-import { collectSpecifiers } from "@/helpers/module-boundary";
-import { DynamicPatternDetector, IssueCollector } from "@/issues";
-import { IntraFunctionShaker } from "@/shake";
-import { BackwardSlicer } from "@/slice";
-import { ProjectContext } from "@/tracker/ProjectContext";
-import { assembleSlicedOutput, isDependencyNodeKeepWorthy } from "@/tracker/sliceOutput";
 import type {
   AbsolutePath,
   IEditor,
@@ -26,6 +18,14 @@ import type {
   TrackResult,
   TrackerConfig,
 } from "@/types";
+import { MagicStringEditor } from "@/edit";
+import { moduleCallKey, tryResolveModuleCall, walkAst } from "@/helpers";
+import { collectSpecifiers } from "@/helpers/module-boundary";
+import { DynamicPatternDetector, IssueCollector } from "@/issues";
+import { IntraFunctionShaker } from "@/shake";
+import { BackwardSlicer } from "@/slice";
+import { ProjectContext } from "@/tracker/ProjectContext";
+import { assembleSlicedOutput, isDependencyNodeKeepWorthy } from "@/tracker/sliceOutput";
 
 /**
  * Optional dependency overrides for constructing a DependencyTracker.

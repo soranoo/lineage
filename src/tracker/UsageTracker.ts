@@ -1,8 +1,5 @@
 import { readFileSync } from "node:fs";
 
-import { MagicStringEditor } from "@/edit";
-import { ProjectContext } from "@/tracker/ProjectContext";
-import { assembleSlicedOutput } from "@/tracker/sliceOutput";
 import type {
   AbsolutePath,
   IEditor,
@@ -14,6 +11,9 @@ import type {
   UsageResult,
   UsageTrackerConfig,
 } from "@/types";
+import { MagicStringEditor } from "@/edit";
+import { ProjectContext } from "@/tracker/ProjectContext";
+import { assembleSlicedOutput } from "@/tracker/sliceOutput";
 import { ForwardSlicer } from "@/usage/ForwardSlicer";
 
 /** Orchestrates forward usage tracking, project indexing, and optional output. */

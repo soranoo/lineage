@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import type { AbsolutePath, SourceText, TrackerConfig } from "@/types";
 import { findRange } from "@/__tests__/utils";
 import { DependencyTracker } from "@/index";
-import type { AbsolutePath, SourceText, TrackerConfig } from "@/types";
 
 const page: AbsolutePath = "/project/page.js";
 const runtime: AbsolutePath = "/project/runtime.js";

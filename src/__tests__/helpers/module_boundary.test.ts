@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import type { AbsolutePath, ParsedFile, SourceText } from "@/types";
 import { collectExports, collectImports, collectSpecifiers } from "@/helpers/module-boundary";
 import { OxcParser } from "@/parse";
-import type { AbsolutePath, ParsedFile, SourceText } from "@/types";
 
 const file: AbsolutePath = "/project/module.ts";
 

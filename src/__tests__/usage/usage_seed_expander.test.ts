@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import type { AstNode, SourceText } from "@/types";
 import { findNode, parseSource, toRange } from "@/__tests__/utils";
 import { StartPointNotFoundError } from "@/types";
-import type { AstNode, SourceText } from "@/types";
 import { UsageSeedExpander } from "@/usage/UsageSeedExpander";
 
 const findNamedNode = (root: AstNode, name: SourceText): AstNode =>

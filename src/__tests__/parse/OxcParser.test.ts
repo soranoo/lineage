@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { OxcParser } from "@/parse";
 import type { AbsolutePath, SourceText } from "@/types";
+import { OxcParser } from "@/parse";
 import { ParseError } from "@/types";
 
 describe("OxcParser", () => {

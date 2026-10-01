@@ -1,6 +1,5 @@
 import { assertNever } from "assert-never";
 
-import { walkAst } from "@/helpers/ast-walker";
 import type {
   AstNode,
   CommonJsExportSite,
@@ -14,6 +13,7 @@ import type {
   ReExportKind,
   SourceText,
 } from "@/types";
+import { walkAst } from "@/helpers/ast-walker";
 
 const DEFAULT_EXPORT: ExportedName = "default";
 const NAMESPACE_EXPORT: ExportedName = "*";
@@ -309,7 +309,19 @@ const collectRequireImports = (statement: AstNode): ModuleBoundaryImport[] => {
   return imports;
 };
 
-/** Find literal CommonJS imports associated with a declaration or require call. */
+/**
+ * Find static CommonJS imports associated with the variable declarator containing `target`.
+ *
+ * The returned sites include only literal `require` calls whose imported local
+ * binding belongs to that declarator. When `localAlias` is provided, results
+ * are limited to that binding. Returns an empty array when `target` is not
+ * contained by a matching declarator.
+ *
+ * @param ast The parsed program to search.
+ * @param target The AST node whose containing declarator should be selected.
+ * @param localAlias Optional local binding name used to filter the results.
+ * @returns Matching CommonJS require sites in the selected declaration.
+ */
 export const findCommonJsRequireSites = (
   ast: OxcAst,
   target: AstNode,
@@ -362,24 +374,41 @@ export const findCommonJsRequireSites = (
     .map((binding) => ({ boundary: declaration, call, binding }));
 };
 
-/** Find a CommonJS export assignment, including one inside a wrapper. */
+/**
+ * Find the first statically identifiable CommonJS export with the requested name.
+ *
+ * The search includes export assignments nested inside wrapper expressions,
+ * such as bundle IIFEs.
+ *
+ * @param ast The parsed program to search.
+ * @param exportedName - The exported name to find.
+ * @returns The matching export site, or `null` when no matching export exists.
+ */
 export const findCommonJsExportSite = (
   ast: OxcAst,
   exportedName: ExportedName,
 ): CommonJsExportSite | null => {
   let found: CommonJsExportSite | null = null;
   walkAst(ast, (node) => {
-    if (found !== null) return;
+    if (found !== null) {
+      return;
+    }
     const binding = collectCommonJsExports(node).find(
       (entry) => entry.exportedName === exportedName,
     );
-    if (binding !== undefined) found = { boundary: node, binding };
+    if (binding !== undefined) {
+      found = { boundary: node, binding };
+    }
   });
   return found;
 };
 
 /**
- * Collect module paths referenced by top-level ESM and CommonJS boundaries.
+ * Collect module specifiers from ESM declarations and static CommonJS requires.
+ *
+ * CommonJS calls are found throughout the program, including inside wrapper
+ * expressions. Dynamic `require` calls are omitted because their target cannot
+ * be determined statically.
  *
  * @param ast Parsed program AST.
  * @returns Unique module specifiers in source order.
@@ -426,7 +455,9 @@ export const collectSpecifiers = (ast: OxcAst): ModuleSpecifier[] => {
   // backward slicer without treating a dynamic require as a module boundary.
   walkAst(ast, (node) => {
     const specifier = getRequireSpecifier(node);
-    if (specifier !== null) specifiers.add(specifier);
+    if (specifier !== null) {
+      specifiers.add(specifier);
+    }
   });
 
   return [...specifiers];

@@ -2,9 +2,9 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import type { AbsolutePath, SourceText } from "@/types";
 import { IgnoreFilter } from "@/resolve/IgnoreFilter";
 import { ProjectFileScanner } from "@/resolve/ProjectFileScanner";
-import type { AbsolutePath, SourceText } from "@/types";
 
 const fixtureRoot: AbsolutePath = path.resolve("src/__tests__/_fixtures/usage/project-scan");
 

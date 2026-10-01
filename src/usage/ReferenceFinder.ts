@@ -1,7 +1,5 @@
 import { visitorKeys } from "oxc-parser";
 
-import { isAstNode } from "@/helpers/ast-walker";
-import { buildScopes, findScopeByNode, resolveBindingInScopes } from "@/helpers/scope";
 import type {
   AstNode,
   ParsedFile,
@@ -10,6 +8,8 @@ import type {
   ReferenceSite,
   SourceText,
 } from "@/types";
+import { isAstNode } from "@/helpers/ast-walker";
+import { buildScopes, findScopeByNode, resolveBindingInScopes } from "@/helpers/scope";
 
 /**
  * Finds direct reads and writes of one binding across its scope and closures.

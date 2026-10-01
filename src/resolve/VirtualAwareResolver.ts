@@ -2,7 +2,7 @@ import path from "node:path";
 
 import { assertNever } from "assert-never";
 
-import { OxcResolver, IgnoreFilter } from "@/resolve";
+import type { OxcResolver, IgnoreFilter } from "@/resolve";
 import type { IResolver } from "@/resolve";
 import type {
   AbsolutePath,
@@ -11,6 +11,7 @@ import type {
   ResolveResult,
   SourceText,
 } from "@/types";
+
 import { InvalidVirtualPathError } from "@/types";
 
 const VIRTUAL_PROBE_SUFFIXES: readonly [

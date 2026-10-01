@@ -4,9 +4,9 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import type { AbsolutePath, SourceText, TrackResult } from "@/types";
 import { findRange } from "@/__tests__/utils";
 import { DependencyTracker } from "@/index";
-import type { AbsolutePath, SourceText, TrackResult } from "@/types";
 
 /**
  * Build a map from node ID to file path.

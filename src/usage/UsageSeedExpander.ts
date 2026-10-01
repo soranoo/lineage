@@ -1,6 +1,6 @@
+import type { AstNode, OffsetRange, ParsedFile, SourceText, UsageSeed } from "@/types";
 import { walkAst } from "@/helpers";
 import { buildScopes } from "@/helpers/scope";
-import type { AstNode, OffsetRange, ParsedFile, SourceText, UsageSeed } from "@/types";
 import { StartPointNotFoundError } from "@/types";
 
 const containsRange = (node: AstNode, range: OffsetRange): boolean =>

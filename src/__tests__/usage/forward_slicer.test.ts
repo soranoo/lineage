@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import type { AbsolutePath, ImporterEntry, UsageNode } from "@/types";
 import { FakeParser } from "@/__tests__/_fakes/FakeParser";
 import { FakeProjectIndex } from "@/__tests__/_fakes/FakeProjectIndex";
 import { buildParsedFiles, findRange } from "@/__tests__/utils";
-import type { AbsolutePath, ImporterEntry, UsageNode } from "@/types";
 import { ForwardSlicer } from "@/usage/ForwardSlicer";
 
 const entryFile: AbsolutePath = "/project/entry.ts";
