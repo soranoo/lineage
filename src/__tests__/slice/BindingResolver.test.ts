@@ -1,9 +1,8 @@
-import { describe, expect, it } from "vitest";
-
-import type { AstNode, SourceText } from "@/types";
 import { findNode, parseSource } from "@/__tests__/utils";
 import { walkAst } from "@/helpers";
 import { BindingResolver } from "@/slice";
+import type { AstNode, SourceText } from "@/types";
+import { describe, expect, it } from "vitest";
 
 /**
  * Determine whether an identifier is a reference rather than a binding.
@@ -108,6 +107,53 @@ const isFunctionDeclarationNamed =
 const isImportDeclaration = (node: AstNode): boolean => node.type === "ImportDeclaration";
 
 describe("BindingResolver", () => {
+  it.each([
+    "function outer(e) { try { fail(); } catch (e) { return e.message; } }",
+    "function outer(e) { try { fail(); } catch (e) { return () => e.message; } }",
+    "function outer(e) { try { fail(); } catch ({ error: e }) { return e.message; } }",
+    "function outer(e) { try { fail(); } catch ([e]) { return e.message; } }",
+  ])("resolves the catch binding instead of the outer parameter: %s", (source) => {
+    const parsed = parseSource(source);
+    const member = findNode(
+      parsed.ast,
+      (node) => node.type === "MemberExpression",
+      "Member not found",
+    );
+    if (member.type !== "MemberExpression") {
+      throw new Error("Member expression not found");
+    }
+    const reference = member.object;
+    const handler = findNode(parsed.ast, (node) => node.type === "CatchClause", "Catch not found");
+    const resolved = new BindingResolver().resolveWithScope("e", reference, parsed);
+
+    expect(resolved?.node.type).toBe("Identifier");
+    expect(resolved?.scopeNode).toBe(handler);
+    expect(resolved?.node.start).toBeGreaterThan(handler.start);
+    expect(resolved?.node.end).toBeLessThan(reference.start);
+  });
+
+  it("does not leak a catch binding into the try block or following statements", () => {
+    const parsed = parseSource(
+      "function outer(e) { try { read(e); } catch (e) { read(e); } return e; }",
+    );
+    const declaration = findNode(
+      parsed.ast,
+      isFunctionDeclarationNamed("outer"),
+      "Outer not found",
+    );
+    const resolver = new BindingResolver();
+    const references: AstNode[] = [];
+    walkAst(parsed.ast, (node, parent) => {
+      if (node.type === "Identifier" && node.name === "e" && isReferenceIdentifier(node, parent)) {
+        references.push(node);
+      }
+    });
+    expect(references).toHaveLength(3);
+    for (const reference of references.filter((_, index) => index !== 1)) {
+      expect(resolver.resolveWithScope("e", reference, parsed)?.scopeNode).toBe(declaration);
+    }
+  });
+
   it("resolves a variable declarator", () => {
     const parsed = parseSource("const value = 1; const result = value + 1;");
     const reference = findIdentifierReference(parsed.ast, "value");

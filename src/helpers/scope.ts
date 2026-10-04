@@ -1,4 +1,4 @@
-import { isAstNode, walkAst } from "@/helpers/ast-walker";
+import { isAstNode } from "@/helpers/ast-walker";
 import type { AstNode, Scope, SourceText } from "@/types";
 import { assertNever } from "assert-never";
 import { visitorKeys } from "oxc-parser";
@@ -44,14 +44,38 @@ const findNearestNonBlockScope = (scopeStack: Scope[]): Scope => {
  * @param scope Lexical scope receiving the binding.
  */
 const registerPatternBindings = (pattern: AstNode, scope: Scope): void => {
-  walkAst(pattern, (node, parent) => {
-    if (
-      node.type === "Identifier" &&
-      !(parent?.type === "Property" && parent.key === node && parent.value !== node)
-    ) {
-      scope.bindings.set(node.name, node);
+  switch (pattern.type) {
+    case "Identifier": {
+      scope.bindings.set(pattern.name, pattern);
+      break;
     }
-  });
+    case "RestElement": {
+      registerPatternBindings(pattern.argument, scope);
+      break;
+    }
+    case "AssignmentPattern": {
+      registerPatternBindings(pattern.left, scope);
+      break;
+    }
+    case "ArrayPattern": {
+      for (const element of pattern.elements) {
+        if (element) {
+          registerPatternBindings(element, scope);
+        }
+      }
+      break;
+    }
+    case "ObjectPattern":
+      {
+        for (const property of pattern.properties) {
+          registerPatternBindings(
+            property.type === "RestElement" ? property.argument : property.value,
+            scope,
+          );
+        }
+      }
+      break;
+  }
 };
 
 /**
@@ -169,6 +193,12 @@ export const buildScopes = (root: AstNode): Scope[] => {
         break;
       case "BlockStatement":
         nextScope = createScope(node, "block");
+        break;
+      case "CatchClause":
+        nextScope = createScope(node, "block");
+        if (node.param) {
+          registerPatternBindings(node.param, nextScope);
+        }
         break;
       default:
         break;
