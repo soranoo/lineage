@@ -2180,7 +2180,7 @@ export class BackwardSlicer {
     const seedDependencies = collectIdentifierDependencies(
       seedDependencyRoot,
       subExprRange,
-      true,
+      subExprRange === null,
     ).filter((dep) => seedNames.has(dep.name));
 
     for (const dependency of seedDependencies) {
@@ -2218,7 +2218,7 @@ export class BackwardSlicer {
         continue;
       }
 
-      const resolved = bindingResolver.resolveWithScope(item.name, item.scopeNode, parsedFile);
+      const resolved = bindingResolver.resolveWithScope(item.name, item.referenceNode, parsedFile);
 
       const requireTarget =
         item.name === "require" ? (item.callSite ?? item.referenceNode) : resolved?.node;
