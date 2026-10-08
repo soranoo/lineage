@@ -1,5 +1,9 @@
-import { describe, expect, it } from "vitest";
-
+import { FakeParser } from "@/__tests__/_fakes/FakeParser";
+import { FakeResolver } from "@/__tests__/_fakes/FakeResolver";
+import { FakeShaker } from "@/__tests__/_fakes/FakeShaker";
+import { buildNodeId, buildParsedFiles, findNode, hasEdge, toRange } from "@/__tests__/utils";
+import { IssueCollector } from "@/issues";
+import { BackwardSlicer } from "@/slice";
 import type {
   AbsolutePath,
   AstNode,
@@ -8,12 +12,7 @@ import type {
   ResolveResult,
   SourceText,
 } from "@/types";
-import { FakeParser } from "@/__tests__/_fakes/FakeParser";
-import { FakeResolver } from "@/__tests__/_fakes/FakeResolver";
-import { FakeShaker } from "@/__tests__/_fakes/FakeShaker";
-import { buildNodeId, buildParsedFiles, findNode, hasEdge, toRange } from "@/__tests__/utils";
-import { IssueCollector } from "@/issues";
-import { BackwardSlicer } from "@/slice";
+import { describe, expect, it } from "vitest";
 
 type ReturnStatementNode = AstNode & { type: "ReturnStatement" };
 type VariableDeclarationNode = AstNode & { type: "VariableDeclaration" };
@@ -102,14 +101,16 @@ const isArrowFunctionExpression = (node: AstNode): node is AstNode =>
  *
  * @param parsedFiles Parsed files to expose.
  * @param baseResolutions Base resolver mappings.
+ * @param overrides Optional resolutions relative to each importer.
  * @returns BackwardSlicer instance and issue collector.
  */
 const createSlicer = (
   parsedFiles: Map<AbsolutePath, ParsedFile>,
   baseResolutions: Map<SourceText, ResolveResult>,
+  overrides?: Map<AbsolutePath, Map<SourceText, ResolveResult>>,
 ): { slicer: BackwardSlicer; collector: IssueCollector } => {
   const parser = new FakeParser(parsedFiles);
-  const resolver = new FakeResolver(baseResolutions);
+  const resolver = new FakeResolver(baseResolutions, overrides);
   const shaker = new FakeShaker(new Set());
   const collector = new IssueCollector();
 
@@ -474,6 +475,118 @@ describe("BackwardSlicer", () => {
     expect(
       result.nodes.some((node) => node.kind === "function" && node.label.includes("format")),
     ).toBe(true);
+    const forwarding = findDependencyNode(
+      result.nodes,
+      (node) => node.kind === "re-export",
+      "Missing forwarding declaration",
+    );
+    const origin = findDependencyNode(
+      result.nodes,
+      (node) => node.kind === "function" && node.label.includes("function format"),
+      "Missing origin function",
+    );
+    expect(origin.file).toBe(utilsFile);
+    expect(hasEdge(result.edges, forwarding.id, origin.id, "import")).toBe(true);
+    for (const node of result.nodes) {
+      expect(node.label).toBe(
+        parsedFiles.get(node.file)?.source.slice(node.range.start, node.range.end),
+      );
+    }
+  });
+
+  it("preserves each re-export hop's file, aliases, source ranges and dependency owner", () => {
+    const entryFile = "/project/main.js";
+    const bridgeFile = "/project/bridge.js";
+    const barrelFile = "/project/nested/barrel.js";
+    const originFile = "/project/nested/origin.js";
+    const parsedFiles = buildParsedFiles([
+      { file: entryFile, source: 'import {value} from "./bridge";const result=value;' },
+      { file: bridgeFile, source: 'export {renamed as value} from "./next";' },
+      { file: barrelFile, source: 'export {alias as renamed} from "./next";' },
+      { file: originFile, source: "export const alias=missing;" },
+    ]);
+    const parsed = parsedFiles.get(entryFile);
+    if (!parsed) {
+      throw new Error("Missing entry source");
+    }
+    const startPoint = toRange(
+      findNode(parsed.ast, isVariableDeclarationNamed("result"), "Missing result"),
+    );
+    const { slicer } = createSlicer(
+      parsedFiles,
+      new Map([["./bridge", { kind: "resolved", absolutePath: bridgeFile }]]),
+      new Map([
+        [bridgeFile, new Map([["./next", { kind: "resolved", absolutePath: barrelFile }]])],
+        [barrelFile, new Map([["./next", { kind: "resolved", absolutePath: originFile }]])],
+      ]),
+    );
+    const result = slicer.slice(entryFile, startPoint, parsedFiles);
+    const bridge = findDependencyNode(
+      result.nodes,
+      (node) => node.file === bridgeFile,
+      "Missing bridge",
+    );
+    const barrel = findDependencyNode(
+      result.nodes,
+      (node) => node.file === barrelFile,
+      "Missing barrel",
+    );
+    const origin = findDependencyNode(
+      result.nodes,
+      (node) => node.file === originFile && node.label === "alias=missing",
+      "Missing origin",
+    );
+    const terminal = findDependencyNode(
+      result.nodes,
+      (node) => node.kind === "unresolved-leaf",
+      "Missing terminal",
+    );
+    expect(hasEdge(result.edges, bridge.id, barrel.id, "import")).toBe(true);
+    expect(hasEdge(result.edges, barrel.id, origin.id, "import")).toBe(true);
+    expect(hasEdge(result.edges, origin.id, terminal.id, "data-flow")).toBe(true);
+    expect(terminal.file).toBe(originFile);
+    expect(terminal.label).toBe("missing");
+    expect(
+      result.nodes.filter((node) => node.file === bridgeFile || node.file === barrelFile),
+    ).toHaveLength(2);
+    for (const node of result.nodes) {
+      expect(node.label).toBe(
+        parsedFiles.get(node.file)?.source.slice(node.range.start, node.range.end),
+      );
+    }
+  });
+
+  it("terminates cyclic re-exports and preserves the cycle with an unresolved issue", () => {
+    const entryFile = "/project/main.js";
+    const aFile = "/project/a.js";
+    const bFile = "/project/b.js";
+    const parsedFiles = buildParsedFiles([
+      { file: entryFile, source: 'import {value} from "./a";const result=value;' },
+      { file: aFile, source: 'export {value} from "./b";' },
+      { file: bFile, source: 'export {value} from "./a";' },
+    ]);
+    const parsed = parsedFiles.get(entryFile);
+    if (!parsed) {
+      throw new Error("Missing entry source");
+    }
+    const startPoint = toRange(
+      findNode(parsed.ast, isVariableDeclarationNamed("result"), "Missing result"),
+    );
+    const { slicer, collector } = createSlicer(
+      parsedFiles,
+      new Map([
+        ["./a", { kind: "resolved", absolutePath: aFile }],
+        ["./b", { kind: "resolved", absolutePath: bFile }],
+      ]),
+    );
+    const result = slicer.slice(entryFile, startPoint, parsedFiles);
+    const a = findDependencyNode(result.nodes, (node) => node.file === aFile, "Missing a");
+    const b = findDependencyNode(result.nodes, (node) => node.file === bFile, "Missing b");
+    expect(hasEdge(result.edges, a.id, b.id, "import")).toBe(true);
+    expect(hasEdge(result.edges, b.id, a.id, "import")).toBe(true);
+    expect(collector.getAll()).toContainEqual(
+      expect.objectContaining({ file: aFile, kind: "unresolved-dependency" }),
+    );
   });
 
   it("marks closure edges for nested functions", () => {

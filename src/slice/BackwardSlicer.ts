@@ -1837,8 +1837,8 @@ export class BackwardSlicer {
             return importDependency;
           }
 
-          const targetFile = result.absolutePath;
-          const targetParsed = parsedFiles.get(targetFile);
+          let targetFile = result.absolutePath;
+          let targetParsed = parsedFiles.get(targetFile);
 
           if (!targetParsed) {
             emitIssue(this.collector, "unresolved-dependency", rangeFromNode(importNode), file);
@@ -1846,7 +1846,10 @@ export class BackwardSlicer {
             return importDependency;
           }
 
-          let lookup = findExportedBinding(targetParsed, importedName);
+          let targetName = importedName;
+          let targetOwnerId = importDependency.id;
+          const visitedExports = new Map<AbsolutePath, Set<SourceText>>();
+          let lookup = findExportedBinding(targetParsed, targetName);
 
           while (lookup && lookup.kind === "re-export") {
             const reExportNode = handleResolvedNode(
@@ -1856,7 +1859,21 @@ export class BackwardSlicer {
               "re-export",
               false,
             );
-            addEdge(importDependency.id, reExportNode.id, "import");
+            addEdge(targetOwnerId, reExportNode.id, "import");
+
+            const exportedNames = visitedExports.get(targetFile) ?? new Set<SourceText>();
+            if (exportedNames.has(targetName)) {
+              emitIssue(
+                this.collector,
+                "unresolved-dependency",
+                rangeFromNode(lookup.node),
+                targetFile,
+              );
+              return importDependency;
+            }
+            exportedNames.add(targetName);
+            visitedExports.set(targetFile, exportedNames);
+            targetOwnerId = reExportNode.id;
 
             const nextResult = this.resolver.resolve(lookup.source, targetFile);
 
@@ -1896,43 +1913,20 @@ export class BackwardSlicer {
               return importDependency;
             }
 
-            lookup = findExportedBinding(nextParsed, lookup.localName);
-
-            if (lookup?.kind === "declaration") {
-              const bindingNode = lookup.node;
-              const binding = handleResolvedNode(
-                bindingNode,
-                nextParsed.absolutePath,
-                nextParsed.source,
-                isFunctionNode(bindingNode) ? "function" : "variable",
-                false,
+            const nextLookup = findExportedBinding(nextParsed, lookup.localName);
+            if (!nextLookup) {
+              emitIssue(
+                this.collector,
+                "unresolved-dependency",
+                rangeFromNode(lookup.node),
+                targetFile,
               );
-              addEdge(importDependency.id, binding.id, "import");
-
-              if (isFunctionNode(bindingNode)) {
-                processResolvedFunction(
-                  bindingNode,
-                  nextParsed.absolutePath,
-                  nextParsed.source,
-                  importDependency.id,
-                  "import",
-                  callSiteOwnerId,
-                  false,
-                );
-              } else if (bindingNode.type === "VariableDeclarator") {
-                processResolvedVariable(
-                  bindingNode,
-                  "program",
-                  nextParsed.absolutePath,
-                  nextParsed.source,
-                  importDependency.id,
-                  "import",
-                  false,
-                  importNode,
-                  bindingNode,
-                );
-              }
+              return importDependency;
             }
+            targetName = lookup.localName;
+            targetFile = nextParsed.absolutePath;
+            targetParsed = nextParsed;
+            lookup = nextLookup;
           }
 
           if (lookup && lookup.kind === "declaration") {
@@ -1944,14 +1938,14 @@ export class BackwardSlicer {
               isFunctionNode(bindingNode) ? "function" : "variable",
               false,
             );
-            addEdge(importDependency.id, binding.id, "import");
+            addEdge(targetOwnerId, binding.id, "import");
 
             if (isFunctionNode(bindingNode)) {
               processResolvedFunction(
                 bindingNode,
                 targetFile,
                 targetParsed.source,
-                importDependency.id,
+                targetOwnerId,
                 "import",
                 callSiteOwnerId,
                 false,
@@ -1962,7 +1956,7 @@ export class BackwardSlicer {
                 "program",
                 targetFile,
                 targetParsed.source,
-                importDependency.id,
+                targetOwnerId,
                 "import",
                 false,
                 importNode,

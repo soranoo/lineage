@@ -1,13 +1,16 @@
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
+import { IgnoreFilter, OxcResolver, VirtualAwareResolver } from "@/resolve";
+import type { AbsolutePath, ResolutionTier, ResolveResult } from "@/types";
+import { InvalidVirtualPathError } from "@/types";
 import { assertNever } from "assert-never";
 import { describe, expect, it, vi } from "vitest";
 
-import type { AbsolutePath, ResolutionTier, ResolveResult } from "@/types";
-import { IgnoreFilter, OxcResolver, VirtualAwareResolver } from "@/resolve";
-import { InvalidVirtualPathError } from "@/types";
-
-const fixturesRoot: AbsolutePath = path.resolve(import.meta.dir, "../_fixtures/resolve");
+const fixturesRoot: AbsolutePath = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../_fixtures/resolve",
+);
 const entryFile: AbsolutePath = path.resolve(fixturesRoot, "entry.ts");
 const targetFile: AbsolutePath = path.resolve(fixturesRoot, "target.ts");
 

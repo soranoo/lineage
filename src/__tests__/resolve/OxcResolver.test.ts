@@ -1,12 +1,15 @@
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
+import { IgnoreFilter, OxcResolver } from "@/resolve";
+import type { AbsolutePath, IgnorePattern } from "@/types";
 import { assertNever } from "assert-never";
 import { describe, expect, it } from "vitest";
 
-import type { AbsolutePath, IgnorePattern } from "@/types";
-import { IgnoreFilter, OxcResolver } from "@/resolve";
-
-const fixturesRoot: AbsolutePath = path.resolve(import.meta.dir, "../_fixtures/resolve");
+const fixturesRoot: AbsolutePath = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../_fixtures/resolve",
+);
 const entryFile: AbsolutePath = path.resolve(fixturesRoot, "entry.ts");
 const targetFile: AbsolutePath = path.resolve(fixturesRoot, "target.ts");
 const ignoredFile: AbsolutePath = path.resolve(fixturesRoot, "ignored/ignored.ts");
