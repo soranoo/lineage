@@ -2,6 +2,15 @@
 
 All notable changes to Lineage are documented here.
 
+## Unreleased
+
+### Added
+
+- Computed dependency trace caching with bounded LRU eviction, safe reuse of
+  repeated variable bindings, configurable `TrackerConfig.traceCache` limits,
+  and `DependencyTracker.getTraceCacheStats()`. See the
+  [caching guide](docs/TRACE_CACHING.md) for defaults, invalidation, and metrics.
+
 ## 2.0.0
 
 ### Breaking Changes

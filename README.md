@@ -26,6 +26,7 @@ Give me a ⭐ if you like it.
 - [✨ Features](#-features)
 - [🚀 Getting Started](#-getting-started)
   - [Backward lineage (dependency tracking)](#backward-lineage-dependency-tracking)
+    - [Computed trace caching](#computed-trace-caching)
   - [Usage tracking (forward lineage)](#usage-tracking-forward-lineage)
 - [⚙️ How It Works](#️-how-it-works)
 - [📦 API Reference](#-api-reference)
@@ -65,6 +66,7 @@ It is recommended to have a basic understanding of the following concepts before
 ## ✨ Features
 
 - **Backward dependency slicing**: given any statement or expression as a start point, Lineage traces every variable, function, parameter, and import that could influence its value
+- **Computed trace caching**: reuse completed backward graphs with bounded LRU retention, safe binding reuse, and cache statistics. See the [caching guide](docs/TRACE_CACHING.md).
 - **Cross-file analysis**: follows `import` and `re-export` chains across your entire codebase, not just a single file
 - **Intra-function tree shaking**: statements inside a dependency function that do not contribute to its return value are identified and flagged separately
 - **Ignore patterns**: exclude folders or files from recursion using strings or RegExp (e.g. `generated/`, `/vendor/`); `node_modules` is always excluded implicitly
@@ -428,6 +430,20 @@ const result2 = await tracker.track({
 > [!NOTE]\
 > `output` is opt-in. When it is omitted, `result.files` is an empty `Map` and no `MagicString` output is assembled. Pass `output: { mode: "blank" }` to preserve the pre-2.0 behavior.
 
+#### Computed trace caching
+
+Reusing a `DependencyTracker` also reuses completed dependency graphs. The cache
+defaults to 128 keys and 8 MiB of estimated retained data. Hits refresh recency;
+insertion evicts the least recently used keys until both limits fit. Oversized
+graphs are returned without retention.
+
+Configure `traceCache.maxEntries` and `traceCache.maxBytes`, or set either to `0`
+to disable retention. Inspect `tracker.getTraceCacheStats()` for hits, binding
+hits, misses, current retention, lifetime peaks, and evictions. See the
+[computed trace caching guide](docs/TRACE_CACHING.md) for reuse rules, source
+invalidation, and memory accounting. Use a new tracker and parser context when
+sources or configuration change.
+
 ### Usage tracking (forward lineage)
 
 `DependencyTracker` answers "what influences this code?" by walking
@@ -617,11 +633,18 @@ const tracker = new DependencyTracker(config?: TrackerConfig);
 
 **`TrackerConfig`**
 
-| Field                     | Type                       | Default     | Description                                                                                                                                                       |
-| ------------------------- | -------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `resolver`                | `OxcResolverOptions`       | `undefined` | Options forwarded verbatim to [`oxc-resolver`](https://github.com/soranoo/oxc-resolver).                                                                          |
-| `ignorePatterns`          | `Array<string \| RegExp>`  | `[]`        | Paths to treat as leaf nodes. Strings are matched with `path.includes(pattern)`, RegExps with `pattern.test(path)`. `node_modules` is always implicitly included. |
-| `moduleResolutionPlugins` | `ModuleResolutionPlugin[]` | `[]`        | Ordered handlers for non-standard module calls such as webpack's numeric module IDs. The first non-null result wins.                                              |
+| Field                     | Type                       | Default                                  | Description                                                                                                                                                       |
+| ------------------------- | -------------------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `resolver`                | `OxcResolverOptions`       | `undefined`                              | Options forwarded verbatim to [`oxc-resolver`](https://github.com/soranoo/oxc-resolver).                                                                          |
+| `ignorePatterns`          | `Array<string \| RegExp>`  | `[]`                                     | Paths to treat as leaf nodes. Strings are matched with `path.includes(pattern)`, RegExps with `pattern.test(path)`. `node_modules` is always implicitly included. |
+| `moduleResolutionPlugins` | `ModuleResolutionPlugin[]` | `[]`                                     | Ordered handlers for non-standard module calls such as webpack's numeric module IDs. The first non-null result wins.                                              |
+| `traceCache`              | `TraceCacheOptions`        | `{ maxEntries: 128, maxBytes: 8388608 }` | Limits for computed graph retention. Either limit set to zero disables retention.                                                                                 |
+
+**`tracker.getTraceCacheStats()`**
+
+Returns a detached `TraceCacheStats` snapshot containing `hits`, `bindingHits`,
+`misses`, `entries`, `bytes`, `peakEntries`, `peakBytes`, and `evictions`.
+See [statistics and eviction semantics](docs/TRACE_CACHING.md#statistics).
 
 #### Module resolution plugins
 
@@ -720,6 +743,10 @@ const forward = new UsageTracker(config, context);
 ```
 
 Both trackers create a private context automatically when one is not supplied.
+
+Computed backward graphs remain in each `DependencyTracker`'s own bounded cache;
+they are not shared by `ProjectContext` or the forward tracker. See
+[computed trace caching](docs/TRACE_CACHING.md).
 
 ---
 

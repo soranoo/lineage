@@ -6,6 +6,7 @@ import {
 } from "@/helpers/module-boundary";
 import { BindingResolver } from "@/slice/BindingResolver";
 import { SeedExpander } from "@/slice/SeedExpander";
+import { SliceTraceCache } from "@/slice/SliceTraceCache";
 import type {
   AbsolutePath,
   AstNode,
@@ -28,6 +29,8 @@ import type {
   SeedNode,
   SliceResult,
   SourceText,
+  TraceCacheOptions,
+  TraceCacheStats,
 } from "@/types";
 import type { IParser, IResolver, IShaker } from "@/types";
 import { StartPointNotFoundError } from "@/types";
@@ -1028,6 +1031,7 @@ export class BackwardSlicer {
   private readonly seedExpander: SeedExpander;
   private readonly moduleResolutionPlugins: readonly ModuleResolutionPlugin[];
   private readonly moduleResolutionCache: ReadonlyMap<SourceText, ModuleResolutionResult>;
+  private readonly traceCache: SliceTraceCache;
 
   /**
    * Initialize a backward slicer with the required collaborators.
@@ -1038,6 +1042,7 @@ export class BackwardSlicer {
    * @param collector Issue collector to receive slice issues.
    * @param moduleResolutionPlugins Plugins that resolve nonstandard module calls.
    * @param moduleResolutionCache Cached outcomes of module plugin resolution.
+   * @param traceCache Limits for computed graph retention.
    */
   constructor(
     parser: IParser,
@@ -1046,6 +1051,7 @@ export class BackwardSlicer {
     collector: IIssueCollector,
     moduleResolutionPlugins: readonly ModuleResolutionPlugin[] = [],
     moduleResolutionCache: ReadonlyMap<SourceText, ModuleResolutionResult> = new Map(),
+    traceCache?: TraceCacheOptions,
   ) {
     this.parser = parser;
     this.resolver = resolver;
@@ -1054,7 +1060,13 @@ export class BackwardSlicer {
     this.seedExpander = new SeedExpander();
     this.moduleResolutionPlugins = moduleResolutionPlugins;
     this.moduleResolutionCache = moduleResolutionCache;
+    this.traceCache = new SliceTraceCache(traceCache);
   }
+
+  /** Inspect computed graph reuse and bounded retention.
+   * @returns Cache counters for this slicer.
+   */
+  readonly getTraceCacheStats = (): TraceCacheStats => this.traceCache.stats();
 
   /**
    * Slice dependencies backward from the provided start point.
@@ -1077,6 +1089,23 @@ export class BackwardSlicer {
     if (!entryParsed) {
       throw new StartPointNotFoundError(entryFile, startPoint);
     }
+
+    this.traceCache.synchronize(parsedFiles);
+    const exactKey = JSON.stringify([
+      "selection",
+      entryFile,
+      startPoint.start,
+      startPoint.end,
+      shake,
+    ]);
+    const exact = this.traceCache.read(exactKey);
+    if (exact) {
+      for (const issue of exact.issues) {
+        this.collector.add(issue);
+      }
+      return exact.slice;
+    }
+    const initialIssueCount = this.collector.getAll().length;
 
     const bindingResolver = new BindingResolver();
     const nodes: DependencyNode[] = [];
@@ -2177,6 +2206,39 @@ export class BackwardSlicer {
       subExprRange === null,
     ).filter((dep) => seedNames.has(dep.name));
 
+    // Only a bare variable reference has an occurrence-independent selected graph.
+    // Calls, parameters, unresolved names, and wider expressions keep their own keys.
+    const soleDependency = seedDependencies.length === 1 ? seedDependencies[0] : undefined;
+    const selectedBinding =
+      this.traceCache.isEnabled() &&
+      !shake &&
+      soleDependency?.node.type === "Identifier" &&
+      soleDependency.callSite === undefined &&
+      soleDependency.node.start === startPoint.start &&
+      soleDependency.node.end === startPoint.end
+        ? bindingResolver.resolveWithScope(soleDependency.name, soleDependency.node, entryParsed)
+        : null;
+    const bindingId =
+      selectedBinding?.node.type === "VariableDeclarator"
+        ? buildNodeId(entryFile, rangeFromNode(selectedBinding.node))
+        : undefined;
+    const bindingKey = bindingId
+      ? JSON.stringify([
+          "binding",
+          bindingId,
+          seedNode.type,
+          enclosingFunction ? rangeFromNode(enclosingFunction) : null,
+        ])
+      : undefined;
+    const reused = bindingKey ? this.traceCache.read(bindingKey, startNode) : undefined;
+    if (reused) {
+      for (const issue of reused.issues) {
+        this.collector.add(issue);
+      }
+      return reused.slice;
+    }
+    this.traceCache.miss();
+
     for (const dependency of seedDependencies) {
       worklist.push(buildWorkItem(dependency, startNode.id, entryFile, seedNode, false));
     }
@@ -2212,7 +2274,10 @@ export class BackwardSlicer {
         continue;
       }
 
-      const resolved = bindingResolver.resolveWithScope(item.name, item.referenceNode, parsedFile);
+      const resolved =
+        selectedBinding && item.referenceNode === soleDependency?.node
+          ? selectedBinding
+          : bindingResolver.resolveWithScope(item.name, item.referenceNode, parsedFile);
 
       const requireTarget =
         item.name === "require" ? (item.callSite ?? item.referenceNode) : resolved?.node;
@@ -2364,6 +2429,26 @@ export class BackwardSlicer {
       }
     }
 
-    return { nodes, edges, visitedRanges: visited };
+    const slice = { nodes, edges, visitedRanges: visited };
+    const issues = this.collector.getAll().slice(initialIssueCount);
+    // Plugins may add parsed files during a crawl; synchronize the final snapshot.
+    this.traceCache.synchronize(parsedFiles);
+    this.traceCache.write(exactKey, { slice, issues });
+    if (
+      bindingKey &&
+      bindingId !== startNode.id &&
+      !nodes.some((node) => node.kind === "parameter") &&
+      edges.filter((edge) => edge.from === startNode.id).every((edge) => edge.to === bindingId) &&
+      !edges.some((edge) => edge.to === startNode.id) &&
+      !issues.some(
+        (issue) =>
+          issue.file === entryFile &&
+          issue.range.start < seedNode.end &&
+          issue.range.end > seedNode.start,
+      )
+    ) {
+      this.traceCache.write(bindingKey, { slice, issues });
+    }
+    return slice;
   };
 }

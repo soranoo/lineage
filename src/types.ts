@@ -296,6 +296,8 @@ export type OutputRangePlan = {
  * Configuration passed to `DependencyTracker`.
  */
 export type TrackerConfig = {
+  /** Bounds for computed dependency graph reuse within this tracker. */
+  traceCache?: TraceCacheOptions;
   /**
    * Options forwarded verbatim to `oxc-resolver`.
    */
@@ -315,6 +317,34 @@ export type TrackerConfig = {
   virtualFiles?: Record<AbsolutePath, SourceText>;
   /** Plugins that can resolve non-standard module call patterns. */
   moduleResolutionPlugins?: ModuleResolutionPlugin[];
+};
+
+/** Retention limits for computed dependency traces; zero disables reuse. */
+export type TraceCacheOptions = {
+  /** Maximum retained graphs; defaults to 128. */
+  maxEntries?: number;
+  /** Maximum estimated graph bytes; defaults to 8 MiB. */
+  maxBytes?: number;
+};
+
+/** Observable counters for computed dependency graph caching. */
+export type TraceCacheStats = {
+  /** Requests served from computed graphs. */
+  hits: number;
+  /** Hits reattached to a different occurrence of the same lexical binding. */
+  bindingHits: number;
+  /** Requests that performed a dependency crawl. */
+  misses: number;
+  /** Retained cache entries. */
+  entries: number;
+  /** Estimated retained graph and key bytes. */
+  bytes: number;
+  /** Largest retained entry count observed during this tracker's lifetime. */
+  peakEntries: number;
+  /** Largest estimated retained graph byte count during this tracker's lifetime. */
+  peakBytes: number;
+  /** Entries removed to satisfy retention limits. */
+  evictions: number;
 };
 
 /**

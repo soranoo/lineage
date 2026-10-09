@@ -23,6 +23,7 @@ import type {
   TrackRequest,
   TrackResult,
   TrackerConfig,
+  TraceCacheStats,
 } from "@/types";
 import { assertNever } from "assert-never";
 
@@ -114,8 +115,15 @@ export class DependencyTracker {
       this.issueCollector,
       this.moduleResolutionPlugins,
       this.moduleResolutionCache,
+      config.traceCache,
     );
   }
+
+  /**
+   * Inspect computed dependency graph reuse and estimated retained memory.
+   * @returns Counters scoped to this tracker and its immutable project context.
+   */
+  readonly getTraceCacheStats = (): TraceCacheStats => this.slicer.getTraceCacheStats();
 
   /**
    * Execute the dependency tracking pipeline for the provided request.
