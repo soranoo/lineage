@@ -520,6 +520,7 @@ src/
   types.ts                    <- all shared types; imported everywhere via @/types
   tracker/
     DependencyTracker.ts      <- backward-tracking orchestrator
+    FileAnalysisCache.ts      <- bounded module discovery and file-issue reuse
     UsageTracker.ts            <- forward-usage orchestrator
     ProjectContext.ts          <- shared parser/resolver/index cache
     sliceOutput.ts            <- shared, opt-in sliced source assembly
@@ -563,6 +564,8 @@ src/__tests__/
   issues/                     <- mirrors src/issues/
   helpers/                    <- mirrors src/helpers/
   tracker/                    <- mirrors src/tracker/
+    FileAnalysisCache.test.ts  <- byte bounds and source/AST invalidation
+    preprocessing-cache.test.ts <- module discovery and issue replay integration
     project_context.test.ts    <- shared context cache behavior
     usage_tracker.test.ts      <- forward tracker orchestration
     slice_output.test.ts       <- shared output assembly and merge behavior

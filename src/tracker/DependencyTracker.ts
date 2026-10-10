@@ -6,6 +6,7 @@ import { collectSpecifiers } from "@/helpers/module-boundary";
 import { DynamicPatternDetector, IssueCollector } from "@/issues";
 import { IntraFunctionShaker } from "@/shake";
 import { BackwardSlicer } from "@/slice";
+import { FileAnalysisCache } from "@/tracker/FileAnalysisCache";
 import { ProjectContext } from "@/tracker/ProjectContext";
 import { assembleSlicedOutput, isDependencyNodeKeepWorthy } from "@/tracker/sliceOutput";
 import type {
@@ -24,6 +25,9 @@ import type {
   TrackResult,
   TrackerConfig,
   TraceCacheStats,
+  DependencyFileAnalysis,
+  PreparedDependencyProject,
+  PreprocessingCacheStats,
 } from "@/types";
 import { assertNever } from "assert-never";
 
@@ -77,6 +81,8 @@ export class DependencyTracker {
   private readonly slicer: BackwardSlicer;
   private readonly moduleResolutionPlugins: readonly ModuleResolutionPlugin[];
   private readonly moduleResolutionCache: Map<SourceText, ModuleResolutionResult>;
+  private readonly preprocessingCache: FileAnalysisCache;
+  private readonly patternIssues = new IssueCollector();
 
   /**
    * Create a dependency tracker with default implementations or injected fakes.
@@ -104,7 +110,8 @@ export class DependencyTracker {
     this.virtualFiles = sharedContext.getVirtualFiles();
     this.shaker = dependencies.shaker ?? new IntraFunctionShaker();
     this.issueCollector = dependencies.issueCollector ?? new IssueCollector();
-    this.dynamicPatternDetector = new DynamicPatternDetector(this.issueCollector);
+    this.dynamicPatternDetector = new DynamicPatternDetector(this.patternIssues);
+    this.preprocessingCache = new FileAnalysisCache(config.preprocessingCache);
     this.editor = dependencies.editor ?? new MagicStringEditor();
     this.moduleResolutionPlugins = config.moduleResolutionPlugins ?? [];
     this.moduleResolutionCache = new Map<SourceText, ModuleResolutionResult>();
@@ -126,6 +133,13 @@ export class DependencyTracker {
   readonly getTraceCacheStats = (): TraceCacheStats => this.slicer.getTraceCacheStats();
 
   /**
+   * Inspect module-discovery and file-wide issue reuse.
+   * @returns File analysis cache counters for this tracker.
+   */
+  readonly getPreprocessingCacheStats = (): PreprocessingCacheStats =>
+    this.preprocessingCache.stats();
+
+  /**
    * Execute the dependency tracking pipeline for the provided request.
    *
    * @param request Track request containing entry file and start point.
@@ -134,8 +148,11 @@ export class DependencyTracker {
   readonly track = async (request: TrackRequest): Promise<TrackResult> => {
     this.issueCollector.clear();
 
-    const parsedFiles = await this.collectParsedFiles(request.entryFile);
-    this.detectDynamicPatterns(parsedFiles);
+    const prepared = this.collectParsedFiles(request.entryFile);
+    const parsedFiles = prepared.files;
+    for (const issue of prepared.issues) {
+      this.issueCollector.add(issue);
+    }
     const sliceResult = this.slicer.slice(
       request.entryFile,
       request.startPoint,
@@ -166,16 +183,15 @@ export class DependencyTracker {
    * Parse entry and recursively resolved module files into one map.
    *
    * @param entryFile Absolute path of the entry file to parse.
-   * @returns Parsed-file map keyed by absolute path.
+   * @returns Parsed-file closure and independent file-wide issues in discovery order.
    */
-  private readonly collectParsedFiles = (
-    entryFile: AbsolutePath,
-  ): Map<AbsolutePath, ParsedFile> => {
+  private readonly collectParsedFiles = (entryFile: AbsolutePath): PreparedDependencyProject => {
     const parsedFiles = new Map<AbsolutePath, ParsedFile>();
+    const issues: PreparedDependencyProject["issues"] = [];
     const queue: AbsolutePath[] = [entryFile];
-
-    while (queue.length > 0) {
-      const nextFile = queue.shift();
+    // Cursor traversal avoids shifting the remaining queue for every discovered file.
+    for (let cursor = 0; cursor < queue.length; cursor++) {
+      const nextFile = queue[cursor];
 
       if (nextFile === undefined) {
         continue;
@@ -193,61 +209,83 @@ export class DependencyTracker {
       this.parsedCache.set(nextFile, parsedFile);
       parsedFiles.set(nextFile, parsedFile);
 
-      const specifiers = collectModuleSpecifiers(parsedFile);
-      for (const specifier of specifiers) {
-        const resolution = this.resolver.resolve(specifier, nextFile);
-
-        switch (resolution.kind) {
-          case "resolved":
-            if (!parsedFiles.has(resolution.absolutePath)) {
-              queue.push(resolution.absolutePath);
-            }
-            break;
-          case "ignored":
-            break;
-          case "failed":
-            break;
-          default:
-            assertNever(resolution);
+      const analysis = this.analyzeFile(parsedFile);
+      issues.push(...structuredClone(analysis.issues));
+      for (const [key, result] of analysis.moduleCalls) {
+        this.moduleResolutionCache.set(key, result);
+      }
+      for (const dependency of analysis.dependencies) {
+        if (!parsedFiles.has(dependency)) {
+          queue.push(dependency);
         }
       }
-
-      walkAst(parsedFile.ast, (node) => {
-        if (node.type !== "CallExpression") {
-          return;
-        }
-
-        const cacheKey = moduleCallKey(nextFile, node);
-        const pluginResult = tryResolveModuleCall(
-          node,
-          parsedFile.source,
-          nextFile,
-          this.moduleResolutionPlugins,
-        );
-        this.moduleResolutionCache.set(cacheKey, pluginResult);
-
-        if (pluginResult === null) {
-          return;
-        }
-
-        const resolution = this.resolver.resolve(pluginResult.specifier, nextFile);
-        if (resolution.kind === "resolved" && !parsedFiles.has(resolution.absolutePath)) {
-          queue.push(resolution.absolutePath);
-        }
-      });
     }
-
-    return parsedFiles;
+    return { files: parsedFiles, issues };
   };
 
   /**
-   * Detect dynamic-pattern issues for all parsed files in the current request.
-   *
-   * @param parsedFiles Parsed files to scan for dynamic patterns.
+   * Discover module boundaries and file-wide issues once per retained parsed source.
+   * @param parsedFile Immutable parsed source.
+   * @returns Completed source-derived metadata, including failed plugin decisions.
    */
-  private readonly detectDynamicPatterns = (parsedFiles: Map<AbsolutePath, ParsedFile>): void => {
-    for (const parsedFile of parsedFiles.values()) {
-      this.dynamicPatternDetector.detect(parsedFile.ast, parsedFile.absolutePath, parsedFile);
+  private readonly analyzeFile = (parsedFile: ParsedFile): DependencyFileAnalysis => {
+    const cached = this.preprocessingCache.read(parsedFile);
+    if (cached) {
+      return cached;
     }
+    const nextFile = parsedFile.absolutePath;
+    const dependencies = new Set<AbsolutePath>();
+    const moduleCalls: DependencyFileAnalysis["moduleCalls"] = [];
+    const specifiers = collectModuleSpecifiers(parsedFile);
+    for (const specifier of specifiers) {
+      const resolution = this.resolver.resolve(specifier, nextFile);
+
+      switch (resolution.kind) {
+        case "resolved":
+          dependencies.add(resolution.absolutePath);
+          break;
+        case "ignored":
+          break;
+        case "failed":
+          break;
+        default:
+          assertNever(resolution);
+      }
+    }
+
+    walkAst(parsedFile.ast, (node) => {
+      if (node.type !== "CallExpression") {
+        return;
+      }
+
+      const cacheKey = moduleCallKey(nextFile, node);
+      const pluginResult = tryResolveModuleCall(
+        node,
+        parsedFile.source,
+        nextFile,
+        this.moduleResolutionPlugins,
+      );
+      moduleCalls.push([cacheKey, pluginResult]);
+
+      if (pluginResult === null) {
+        return;
+      }
+
+      const resolution = this.resolver.resolve(pluginResult.specifier, nextFile);
+      if (resolution.kind === "resolved") {
+        dependencies.add(resolution.absolutePath);
+      }
+    });
+    this.patternIssues.clear();
+    this.dynamicPatternDetector.detect(parsedFile.ast, parsedFile.absolutePath, parsedFile);
+    const analysis: DependencyFileAnalysis = {
+      source: parsedFile.source,
+      ast: parsedFile.ast,
+      dependencies: [...dependencies],
+      moduleCalls,
+      issues: this.patternIssues.getAll(),
+    };
+    this.preprocessingCache.write(nextFile, analysis);
+    return analysis;
   };
 }

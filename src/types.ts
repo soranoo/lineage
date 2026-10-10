@@ -296,6 +296,8 @@ export type OutputRangePlan = {
  * Configuration passed to `DependencyTracker`.
  */
 export type TrackerConfig = {
+  /** Bounds for per-file module discovery and dynamic-pattern issue reuse. */
+  preprocessingCache?: TraceCacheOptions;
   /** Bounds for computed dependency graph reuse within this tracker. */
   traceCache?: TraceCacheOptions;
   /**
@@ -319,12 +321,48 @@ export type TrackerConfig = {
   moduleResolutionPlugins?: ModuleResolutionPlugin[];
 };
 
-/** Retention limits for computed dependency traces; zero disables reuse. */
+/** Retention limits for dependency analysis caches; zero disables reuse. */
 export type TraceCacheOptions = {
-  /** Maximum retained graphs; defaults to 128. */
+  /** Maximum retained analysis entries; defaults to 128. */
   maxEntries?: number;
-  /** Maximum estimated graph bytes; defaults to 8 MiB. */
+  /** Maximum estimated derived metadata or graph bytes; defaults to 8 MiB. */
   maxBytes?: number;
+};
+
+/** Measurements for per-file preprocessing reuse. */
+export type PreprocessingCacheStats = {
+  /** File analyses reused without scanning the AST again. */
+  hits: number;
+  /** File analyses computed. */
+  misses: number;
+  /** Currently retained file analyses. */
+  entries: number;
+  /** Estimated retained metadata bytes, excluding shared source and AST storage. */
+  bytes: number;
+  /** File analyses removed to satisfy capacity limits. */
+  evictions: number;
+};
+
+/** File-derived metadata for an immutable parsed source. */
+export type DependencyFileAnalysis = {
+  /** Exact source identity supporting this metadata. */
+  source: SourceText;
+  /** Exact AST identity supporting this metadata. */
+  ast: ParsedFile["ast"];
+  /** Resolved imports and plugin module boundaries, in discovery order. */
+  dependencies: AbsolutePath[];
+  /** Source-call identities and their plugin decisions, including unclaimed calls. */
+  moduleCalls: Array<[SourceText, ModuleResolutionResult]>;
+  /** File-wide issues in original detection order. */
+  issues: TrackerIssue[];
+};
+
+/** Parsed dependency closure and independent file-wide issues for one request. */
+export type PreparedDependencyProject = {
+  /** Complete entry dependency closure. */
+  files: Map<AbsolutePath, ParsedFile>;
+  /** File-wide diagnostics replayed into the request collector before slicing. */
+  issues: TrackerIssue[];
 };
 
 /** Observable counters for computed dependency graph caching. */

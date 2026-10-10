@@ -22,7 +22,7 @@ const CHARACTER_BYTES = 2;
 export type CachedSliceTrace = {
   /** Complete dependency graph before output assembly. */
   slice: SliceResult;
-  /** Slice issues only; file-wide detection still runs for each request. */
+  /** Slice issues only; file-wide issues are replayed separately for each request. */
   issues: TrackerIssue[];
 };
 

@@ -6,6 +6,9 @@ All notable changes to Lineage are documented here.
 
 ### Added
 
+- Bounded per-file module discovery, plugin decision and dynamic-pattern issue
+  caching with `TrackerConfig.preprocessingCache` and
+  `DependencyTracker.getPreprocessingCacheStats()`.
 - Computed dependency trace caching with bounded LRU eviction, safe reuse of
   repeated variable bindings, configurable `TrackerConfig.traceCache` limits,
   and `DependencyTracker.getTraceCacheStats()`. See the

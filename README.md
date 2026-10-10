@@ -444,6 +444,11 @@ hits, misses, current retention, lifetime peaks, and evictions. See the
 invalidation, and memory accounting. Use a new tracker and parser context when
 sources or configuration change.
 
+The same tracker also caches per-file module discovery, plugin decisions and
+dynamic-pattern issues. Configure `preprocessingCache` independently with the
+same default limits and inspect `tracker.getPreprocessingCacheStats()`. Each
+request receives independent replayed issues. See the caching guide above.
+
 ### Usage tracking (forward lineage)
 
 `DependencyTracker` answers "what influences this code?" by walking
@@ -639,12 +644,18 @@ const tracker = new DependencyTracker(config?: TrackerConfig);
 | `ignorePatterns`          | `Array<string \| RegExp>`  | `[]`                                     | Paths to treat as leaf nodes. Strings are matched with `path.includes(pattern)`, RegExps with `pattern.test(path)`. `node_modules` is always implicitly included. |
 | `moduleResolutionPlugins` | `ModuleResolutionPlugin[]` | `[]`                                     | Ordered handlers for non-standard module calls such as webpack's numeric module IDs. The first non-null result wins.                                              |
 | `traceCache`              | `TraceCacheOptions`        | `{ maxEntries: 128, maxBytes: 8388608 }` | Limits for computed graph retention. Either limit set to zero disables retention.                                                                                 |
+| `preprocessingCache`      | `TraceCacheOptions`        | `{ maxEntries: 128, maxBytes: 8388608 }` | Limits for file module discovery and dynamic-pattern issue reuse. Either limit set to zero disables retention.                                                    |
 
 **`tracker.getTraceCacheStats()`**
 
 Returns a detached `TraceCacheStats` snapshot containing `hits`, `bindingHits`,
 `misses`, `entries`, `bytes`, `peakEntries`, `peakBytes`, and `evictions`.
 See [statistics and eviction semantics](docs/TRACE_CACHING.md#statistics).
+
+**`tracker.getPreprocessingCacheStats()`**
+
+Returns detached per-file metadata counters: `hits`, `misses`, `entries`, `bytes`
+and `evictions`. The estimate excludes shared parsed source and AST storage.
 
 #### Module resolution plugins
 
