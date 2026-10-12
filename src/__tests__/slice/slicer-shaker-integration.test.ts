@@ -1,5 +1,5 @@
-import type { ReturnStatement } from "@oxc-project/types";
 import { describe, expect, it } from "vitest";
+import type { ReturnStatement } from "@oxc-project/types";
 
 import { FakeParser } from "@/__tests__/_fakes/FakeParser";
 import { FakeResolver } from "@/__tests__/_fakes/FakeResolver";
@@ -7,6 +7,7 @@ import { buildParsedFiles, findNode, toRange } from "@/__tests__/utils";
 import { IssueCollector } from "@/issues";
 import { IntraFunctionShaker } from "@/shake";
 import { BackwardSlicer } from "@/slice";
+
 import type { AbsolutePath, AstNode, ParsedFile } from "@/types";
 
 /**

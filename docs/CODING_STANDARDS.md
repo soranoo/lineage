@@ -12,10 +12,10 @@
   - [Path Alias](#path-alias---src)
   - [Import Order](#import-order)
 - [📐 Language Rules](#-language-rules)
-  - [No `any`](#no-any)
   - [Arrow Functions Only](#arrow-functions-only-applicable-to-typescript-files-only)
   - [No `as` Type Assertions](#no-as-type-assertions)
   - [Type Aliases for Primitives](#type-aliases-for-primitives)
+  - [Named Object Return Types](#named-object-return-types)
 - [🔀 Control Flow Rules](#-control-flow-rules)
   - [switch over if/else](#switch-over-ifelse)
   - [assert-never in Every Default](#assert-never-in-every-default)
@@ -95,21 +95,6 @@ Additional rules:
 ---
 
 ## 📐 Language Rules
-
-### No `any`
-
-TypeScript's `any` type is banned. Use `unknown` for truly opaque values and narrow explicitly. If a type is missing, add it to `src/types.ts`.
-
-```ts
-// banned
-const parse = (input: any) => { ... };
-
-// correct
-const parse = (input: unknown) => {
-  if (typeof input !== "string") throw new TypeError("...");
-  ...
-};
-```
 
 ### Arrow Functions Only (Applicable to TypeScript Files Only)
 
@@ -203,6 +188,30 @@ const buildId = (path: string, start: number, end: number): string => ...
 const buildId = (path: AbsolutePath, start: CharOffset, end: CharOffset): NodeId => ...
 ```
 
+### Named Object Return Types
+
+Inline object type literals in function return annotations are banned. This
+includes arrow functions, class methods, callbacks, and object shapes nested in
+generic types such as `Promise<{ ... }>`.
+
+```ts
+// banned
+const findSelection = (source: SourceText): { start: CharOffset; end: CharOffset } => ...;
+const loadResult = (): Promise<{ file: AbsolutePath; found: boolean }> => ...;
+
+// correct - define the named return type in src/types.ts
+const findSelection = (source: SourceText): OffsetRange => ...;
+const loadResult = (): Promise<LoadResult> => ...;
+```
+
+Add the named type to `src/types.ts`, document the type and each field with
+JSDoc, and import it from `@/types`. Use the same rule for private helpers:
+small scope does not make an inline return shape easier to reuse or maintain.
+Existing inline return shapes are legacy violations; replace them when their
+signature is next changed, and do not copy them into new code. Utility types
+such as `Promise<LoadResult>` and `Result<Value, Error>` remain valid because
+their returned shape is named.
+
 ---
 
 ## 🔀 Control Flow Rules
@@ -265,7 +274,7 @@ Every class must follow these constraints:
 
 - **Single responsibility**: one class, one job. If a second concern appears, extract a new class.
 - **Depend on interfaces, not implementations**: constructor injection is the only accepted DI pattern. No service locators, no singletons, no static stateful methods.
-- **`DependencyTracker` is the only exported class** from `src/index.ts`. All other classes are internal and must not be exported.
+- **`DependencyTracker` is the public tracker class** from `src/index.ts`; public helper functions such as `assembleSlicedOutput` may also be exported. Other implementation classes remain internal.
 
 ```ts
 // correct - depends on IParser interface, not OxcParser directly
@@ -393,15 +402,28 @@ State the single responsibility and any important constraints:
 class IgnoreFilter { ... }
 ```
 
-#### Every method and arrow property on a class
+#### Every method and callable helper
 
-Included both public and private methods. State the purpose, parameters, return value, and any thrown errors:
+This includes public and private class methods, arrow properties, exported functions, and local arrow helpers inside methods. A summary-only `/** ... */` comment is not enough, even though it uses JSDoc delimiters. Use a multiline
+JSDoc block that explains the behavior, has one `@param` for every parameter (including optional ones), an `@returns` describing the result (excluding `void`), and an `@throws` for each expected thrown error. Update existing JSDoc when a method's behavior changes so its description remains accurate.
+
+```ts
+// banned - omits parameter documentation
+/** Follow one statically named CommonJS import to its export declaration. */
+const processRequireSite = (
+  site: CommonJsRequireSite,
+  item: IdentifierWorkItem,
+  source: SourceText,
+): void => { ... };
+```
+
+Document the purpose and contract in the standard form:
 
 ```ts
 /**
  * Returns the first pattern that matches `absolutePath`, or `null` if none match.
  *
- * @param absolutePath - The absolute file path to test against the compiled patterns.
+ * @param absolutePath The absolute file path to test against the compiled patterns.
  * @returns The first matching ignore pattern, or `null` if no pattern matches.
  */
 readonly match = (absolutePath: AbsolutePath): IgnorePattern | null => { ... };
@@ -497,7 +519,11 @@ src/
   index.ts                    <- public API only; no logic here
   types.ts                    <- all shared types; imported everywhere via @/types
   tracker/
-    DependencyTracker.ts      <- orchestrator (the only exported class)
+    DependencyTracker.ts      <- backward-tracking orchestrator
+    FileAnalysisCache.ts      <- bounded module discovery and file-issue reuse
+    UsageTracker.ts            <- forward-usage orchestrator
+    ProjectContext.ts          <- shared parser/resolver/index cache
+    sliceOutput.ts            <- shared, opt-in sliced source assembly
   parse/
     Parser.ts                 <- IParser interface
     OxcParser.ts              <- implementation
@@ -510,6 +536,11 @@ src/
     BackwardSlicer.ts         <- worklist implementation
     SeedExpander.ts           <- phase 1 seed extraction
     BindingResolver.ts        <- scope-aware name to node lookup
+  usage/
+    ReferenceFinder.ts        <- direct read/write reference lookup
+    UsageSlicer.ts            <- forward slicer interface
+    UsageSeedExpander.ts      <- forward seed extraction
+    ForwardSlicer.ts          <- classified forward usage scan
   shake/
     Shaker.ts                 <- IShaker interface
     IntraFunctionShaker.ts    <- implementation
@@ -521,6 +552,7 @@ src/
     DynamicPatternDetector.ts <- AST walker for dynamic patterns
   helpers/
     ast-walker.ts             <- pure helper
+    scope.ts                  <- shared lexical scope construction
     offset-from-line-col.ts   <- pure helper
 
 src/__tests__/
@@ -532,12 +564,25 @@ src/__tests__/
   issues/                     <- mirrors src/issues/
   helpers/                    <- mirrors src/helpers/
   tracker/                    <- mirrors src/tracker/
+    FileAnalysisCache.test.ts  <- byte bounds and source/AST invalidation
+    preprocessing-cache.test.ts <- module discovery and issue replay integration
+    project_context.test.ts    <- shared context cache behavior
+    usage_tracker.test.ts      <- forward tracker orchestration
+    slice_output.test.ts       <- shared output assembly and merge behavior
+  usage/                      <- mirrors src/usage/
+    forward_slicer.test.ts
+    usage_seed_expander.test.ts
+    usage_slicer.test.ts
+  project/                    <- mirrors src/project/
+    ImportGraph.test.ts
+    ProjectIndexer.test.ts
   _fakes/                     <- non-mirrored: shared hand-rolled fakes
     FakeParser.test.ts
     FakeParser.ts
     FakeResolver.test.ts
     FakeResolver.ts
     FakeShaker.ts
+    FakeProjectIndex.ts
   _fixtures/                  <- non-mirrored: real source files and pipeline tests
     linear-chain/
     intra-shake/
@@ -547,6 +592,8 @@ src/__tests__/
     closures-conditionals/
     dynamic-patterns/
     class-async-circular/
+    usage/                    <- forward-tracking fixture families
+    usage-tracking.fixture.test.ts
     pipeline.fixture.test.ts
     slice-output.fixture.test.ts
     multi-call.fixture.test.ts

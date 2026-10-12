@@ -48,10 +48,155 @@ export type IgnorePattern = string | RegExp;
  */
 export type SourceText = string;
 
+/** A name exported by an ECMAScript module. */
+export type ExportedName = string;
+
+/** A local binding name used by an importing module. */
+export type LocalAlias = string;
+
+/** The syntax used to re-export a module binding. */
+export type ReExportKind = "named" | "default" | "namespace" | "export-all";
+
+/** A direct import entry in the project-wide reverse index. */
+export type ImporterEntry = {
+  /** The entry's direct-import discriminator. */
+  kind: "import";
+  /** Absolute path of the importing file. */
+  importerFile: AbsolutePath;
+  /** Exported name requested from the source file. */
+  exportedName: ExportedName;
+  /** Local binding introduced in the importing file. */
+  localAlias: LocalAlias;
+};
+
+/** A direct re-export edge in the project-wide reverse index. */
+export type ReExportEntry = {
+  /** Re-export syntax discriminator. */
+  kind: ReExportKind;
+  /** Absolute path of the file exposing the re-export. */
+  reExporterFile: AbsolutePath;
+  /** Absolute path of the ultimate source named by this edge. */
+  sourceFile: AbsolutePath;
+  /** Name requested from the source file, or `*` for export-all. */
+  importedName: ExportedName;
+  /** Name exposed by the re-exporting file, or `*` for export-all. */
+  exportedName: ExportedName;
+};
+
 /**
  * Human-readable label extracted from source for a dependency node.
  */
 export type NodeLabel = string;
+
+/** A module specifier accepted by a resolver or module boundary plugin. */
+export type ModuleSpecifier = string;
+
+/** A binding exposed by an ESM or CommonJS module boundary. */
+export type ExportedBinding = {
+  /** Name visible to importers. */
+  exportedName: ExportedName;
+  /** Local binding that provides the exported value, when known. */
+  localName?: LocalAlias;
+  /** Source module for a re-exported binding. */
+  source?: ModuleSpecifier;
+};
+
+/** Kind of module boundary import discovered in a source file. */
+export type ModuleBoundaryImportKind = "import" | "re-export";
+
+/** Import or re-export metadata associated with a module specifier. */
+export type ModuleBoundaryImport = {
+  /** Whether the boundary introduces a local import or re-exports a binding. */
+  kind: ModuleBoundaryImportKind;
+  /** Module path passed to the resolver. */
+  specifier: ModuleSpecifier;
+  /** Name requested from the source module. */
+  importedName: ExportedName;
+  /** Local name introduced by an import. */
+  localAlias: LocalAlias;
+  /** Name exposed by a re-exporting module. */
+  exportedName?: ExportedName;
+  /** Re-export syntax used by this boundary. */
+  reExportKind?: ReExportKind;
+};
+
+/** Literal CommonJS import found at a variable declaration. */
+export type CommonJsRequireSite = {
+  /** Variable declaration containing the require call. */
+  boundary: AstNode;
+  /** Literal require call within the declaration. */
+  call: AstNode;
+  /** Local alias and requested export metadata. */
+  binding: ModuleBoundaryImport;
+};
+
+/** CommonJS export assignment and the binding it exposes. */
+export type CommonJsExportSite = {
+  /** Assignment that publishes the binding. */
+  boundary: AstNode;
+  /** Exported name and optional local binding. */
+  binding: ExportedBinding;
+};
+
+/** A stable name used to identify a module-resolution plugin. */
+export type ModuleResolutionPluginName = string;
+
+/** A statically known primitive literal passed to a module boundary plugin. */
+export type LiteralValue = string | number | boolean;
+
+/** Maximum number of usage nodes a forward traversal may produce. */
+export type UsageNodeLimit = number;
+
+/** Classification of a direct binding reference. */
+export type ReferenceKind =
+  /** The binding is read at the reference site. */
+  | "read"
+  /** The binding is assigned or updated at the reference site. */
+  | "write";
+
+/** Structural context surrounding a direct binding reference. */
+export type ReferenceParentContext =
+  /** The reference is an ordinary read. */
+  | "read"
+  /** The reference is the value of a new variable declarator. */
+  | "declarator"
+  /** The reference is the source of a destructuring declarator. */
+  | "destructure"
+  /** The reference is passed as a call argument. */
+  | "call-argument"
+  /** The reference is returned from its enclosing function. */
+  | "return"
+  /** The reference is assigned to an object property. */
+  | "property-write"
+  /** The reference is spread into another value. */
+  | "spread"
+  /** The reference is an assignment or update target. */
+  | "write";
+
+/** A direct read or write of a binding within its scope. */
+export type ReferenceSite = {
+  /** Identifier AST node representing the reference. */
+  node: AstNode;
+  /** Whether the reference reads or writes the binding. */
+  kind: ReferenceKind;
+  /** Whether the reference is inside a nested function scope. */
+  insideClosure: boolean;
+  /** Structural context used by forward usage classification. */
+  parentContext: ReferenceParentContext;
+};
+
+/** Scope classification used during binding lookup and reference finding. */
+export type ScopeKind = "program" | "function" | "block";
+
+/** Scope container with bindings collected from an AST. */
+export type Scope = {
+  /** AST node that owns the scope. */
+  node: AstNode;
+  /** Scope classification. */
+  kind: ScopeKind;
+  /** Binding map keyed by identifier name. */
+  bindings: Map<SourceText, AstNode>;
+};
 
 /**
  * Human-readable issue message for a tracker issue.
@@ -78,6 +223,7 @@ export type SeedNode = AstNode & {
     | "VariableDeclaration"
     | "ExpressionStatement"
     | "AssignmentExpression"
+    | "FunctionDeclaration"
     | "IfStatement"
     | "SwitchStatement"
     | "WhileStatement"
@@ -128,10 +274,32 @@ export type OffsetRange = {
   end: CharOffset;
 };
 
+/** A selected property within a directly assigned object table. */
+export type ObjectTableSelection = {
+  /** Object expression whose surrounding assignment must remain valid. */
+  table: AstNode;
+  /** Property containing the tracked source range. */
+  property: AstNode;
+};
+
+/** Source ranges and table entries chosen for one file's output assembly. */
+export type OutputRangePlan = {
+  /** Ranges preserved by the source editor. */
+  keepRanges: Set<OffsetRange>;
+  /** Object tables mapped to every property selected across tracker nodes. */
+  tables: Map<AstNode, Set<AstNode>>;
+  /** Statement ranges retained when precise table pruning is unsafe. */
+  precisionLosses: OffsetRange[];
+};
+
 /**
  * Configuration passed to `DependencyTracker`.
  */
 export type TrackerConfig = {
+  /** Bounds for per-file module discovery and dynamic-pattern issue reuse. */
+  preprocessingCache?: TraceCacheOptions;
+  /** Bounds for computed dependency graph reuse within this tracker. */
+  traceCache?: TraceCacheOptions;
   /**
    * Options forwarded verbatim to `oxc-resolver`.
    */
@@ -149,7 +317,109 @@ export type TrackerConfig = {
    * Virtual keys must start with `/`.
    */
   virtualFiles?: Record<AbsolutePath, SourceText>;
+  /** Plugins that can resolve non-standard module call patterns. */
+  moduleResolutionPlugins?: ModuleResolutionPlugin[];
 };
+
+/** Retention limits for dependency analysis caches; zero disables reuse. */
+export type TraceCacheOptions = {
+  /** Maximum retained analysis entries; defaults to 128. */
+  maxEntries?: number;
+  /** Maximum estimated derived metadata or graph bytes; defaults to 8 MiB. */
+  maxBytes?: number;
+};
+
+/** Measurements for per-file preprocessing reuse. */
+export type PreprocessingCacheStats = {
+  /** File analyses reused without scanning the AST again. */
+  hits: number;
+  /** File analyses computed. */
+  misses: number;
+  /** Currently retained file analyses. */
+  entries: number;
+  /** Estimated retained metadata bytes, excluding shared source and AST storage. */
+  bytes: number;
+  /** File analyses removed to satisfy capacity limits. */
+  evictions: number;
+};
+
+/** File-derived metadata for an immutable parsed source. */
+export type DependencyFileAnalysis = {
+  /** Exact source identity supporting this metadata. */
+  source: SourceText;
+  /** Exact AST identity supporting this metadata. */
+  ast: ParsedFile["ast"];
+  /** Resolved imports and plugin module boundaries, in discovery order. */
+  dependencies: AbsolutePath[];
+  /** Source-call identities and their plugin decisions, including unclaimed calls. */
+  moduleCalls: Array<[SourceText, ModuleResolutionResult]>;
+  /** File-wide issues in original detection order. */
+  issues: TrackerIssue[];
+};
+
+/** Parsed dependency closure and independent file-wide issues for one request. */
+export type PreparedDependencyProject = {
+  /** Complete entry dependency closure. */
+  files: Map<AbsolutePath, ParsedFile>;
+  /** File-wide diagnostics replayed into the request collector before slicing. */
+  issues: TrackerIssue[];
+};
+
+/** Observable counters for computed dependency graph caching. */
+export type TraceCacheStats = {
+  /** Requests served from computed graphs. */
+  hits: number;
+  /** Hits reattached to a different occurrence of the same lexical binding. */
+  bindingHits: number;
+  /** Requests that performed a dependency crawl. */
+  misses: number;
+  /** Retained cache entries. */
+  entries: number;
+  /** Estimated retained graph and key bytes. */
+  bytes: number;
+  /** Largest retained entry count observed during this tracker's lifetime. */
+  peakEntries: number;
+  /** Largest estimated retained graph byte count during this tracker's lifetime. */
+  peakBytes: number;
+  /** Entries removed to satisfy retention limits. */
+  evictions: number;
+};
+
+/**
+ * Caller-supplied resolution logic for calls whose module target is not a
+ * plain string import or require specifier.
+ */
+export type ModuleResolutionPlugin = {
+  /** Name used in issue messages and diagnostics. */
+  name: ModuleResolutionPluginName;
+  /**
+   * Resolves a recognized call into a normal module specifier, or returns
+   * null when this plugin does not recognize the call.
+   *
+   * @param call The call details supplied to the plugin.
+   * @param call.calleeText Source text of the callee expression.
+   * @param call.args Statically known literal arguments.
+   * @param call.file Absolute path of the file containing the call.
+   * @returns The resolved specifier, or `null` when this plugin does not recognize the call.
+   */
+  tryResolve: (call: {
+    /** Source text of the callee expression. */
+    calleeText: SourceText;
+    /** Statically known literal arguments. */
+    args: readonly LiteralValue[];
+    /** Absolute path of the file containing the call. */
+    file: AbsolutePath;
+  }) => {
+    /** Module path returned by a plugin that recognizes the call. */
+    specifier: ModuleSpecifier;
+  } | null;
+};
+
+/** Cached result from consulting a module-resolution plugin for one call. */
+export type ModuleResolutionResult = {
+  /** Resolved module path, when a plugin recognizes the call. */
+  specifier: ModuleSpecifier;
+} | null;
 
 /**
  * Resolver dispatch tier used by `VirtualAwareResolver`.
@@ -180,6 +450,8 @@ export type TrackRequest = {
   entryFile: AbsolutePath;
   /** Character offset range of the start-point node. */
   startPoint: OffsetRange;
+  /** Whether to prune statements that do not contribute to returned values. */
+  shake?: boolean;
   /** Optional output configuration for sliced source. */
   output?: TrackOutputConfig;
 };
@@ -197,6 +469,160 @@ export type TrackResult = {
   /** Issues discovered during slicing. */
   issues: TrackerIssue[];
 };
+
+/** Configuration for forward usage tracking and its project-wide index. */
+export type UsageTrackerConfig = TrackerConfig & {
+  /** Root directory recursively scanned for project files. */
+  projectRoot?: AbsolutePath;
+  /** Explicit allow-list of files to index instead of scanning a root. */
+  projectFiles?: AbsolutePath[];
+  /** Safety cap for import-graph usage traversal. */
+  maxUsageNodes?: UsageNodeLimit;
+};
+
+/** Inputs used to enumerate files for a project index. */
+export type ProjectScanConfig = {
+  /** Root directory recursively scanned for source files. */
+  projectRoot?: AbsolutePath;
+  /** Explicit files to include instead of discovering from disk. */
+  projectFiles?: AbsolutePath[];
+  /** In-memory files included without disk access. */
+  virtualFiles?: Record<AbsolutePath, SourceText>;
+};
+
+/** Input describing the declaration to track forward from. */
+export type UsageRequest = {
+  /** Absolute path to the file containing the declaration. */
+  entryFile: AbsolutePath;
+  /** Offset range of the declaration to track. */
+  startPoint: OffsetRange;
+  /** Optional sliced output configuration. */
+  output?: TrackOutputConfig;
+};
+
+/** Output returned from a forward usage-tracking request. */
+export type UsageResult = {
+  /** Sliced source per contributing file. */
+  files: Map<AbsolutePath, SlicedFile>;
+  /** Flat list of usage nodes across all files. */
+  nodes: UsageNode[];
+  /** Directed usage edges between nodes. */
+  edges: UsageEdge[];
+  /** Issues discovered while finding usages. */
+  issues: TrackerIssue[];
+};
+
+/** A resolved declaration used as the root of one forward scan. */
+export type UsageSeed = {
+  /** Absolute path containing the binding. */
+  file: AbsolutePath;
+  /** Binding name to find references for. */
+  name: SourceText;
+  /** AST node that introduces the binding. */
+  declaration: AstNode;
+  /** Lexical scope that owns the binding. */
+  scopeNode: AstNode;
+};
+
+/** Output produced by the forward slicer before source editing. */
+export type UsageSliceResult = {
+  /** Usage nodes discovered during the scan. */
+  nodes: UsageNode[];
+  /** Edges connecting the seed, references, and import boundaries. */
+  edges: UsageEdge[];
+  /** Issues raised while traversing usage sites. */
+  issues: TrackerIssue[];
+};
+
+/** A node in the forward usage graph. */
+export type UsageNode = {
+  /** Stable unique node identifier. */
+  id: NodeId;
+  /** Absolute path containing the usage. */
+  file: AbsolutePath;
+  /** Character range of the usage node. */
+  range: OffsetRange;
+  /** Human-readable source label. */
+  label: NodeLabel;
+  /** Classification of the usage. */
+  kind: UsageKind;
+  /** Continuation details for an untraced usage. */
+  continuation?: UsageContinuation;
+};
+
+/** A node kind accepted by the shared sliced-output assembler. */
+export type SliceOutputNode = DependencyNode | UsageNode;
+
+/** Selects the nodes whose source ranges should be preserved in output. */
+export type OutputKeepNodePredicate<TNode extends SliceOutputNode> = (node: TNode) => boolean;
+
+/** Classification of a forward usage node. */
+export type UsageKind =
+  /** The declaration marked as the usage start point. */
+  | "start-point"
+  /** A direct read of the tracked binding. */
+  | "read-reference"
+  /** A reassignment of the tracked binding. */
+  | "write-reference"
+  /** The tracked binding is exported from its file. */
+  | "export-boundary"
+  /** An importer's local alias for an exported tracked binding. */
+  | "import-usage"
+  /** A terminal usage whose next location is not automatically followed. */
+  | "untraced-continuation";
+
+/** Reason a usage continues without automatic transitive tracking. */
+export type UntracedContinuationReason =
+  /** A value is assigned to a new or existing binding. */
+  | "reassignment"
+  /** A value is unpacked through a destructuring pattern. */
+  | "destructure"
+  /** A value is passed as an argument. */
+  | "call-argument"
+  /** A value is returned from a function. */
+  | "return-value"
+  /** A value is written to an object property. */
+  | "property-write"
+  /** A value is spread into another object or array. */
+  | "spread"
+  /** A tracked function or callable value is invoked. */
+  | "invoked";
+
+/** Details about where a terminal usage may continue. */
+export type UsageContinuation = {
+  /** Classification of the continuation. */
+  reason: UntracedContinuationReason;
+  /** Whether the destination cannot be determined statically. */
+  opaque: boolean;
+  /** Best-effort destination for a non-opaque continuation. */
+  continuesAt?: {
+    /** Absolute path containing the destination. */
+    file: AbsolutePath;
+    /** Range of the destination declaration. */
+    range: OffsetRange;
+    /** Human-readable destination label. */
+    label: NodeLabel;
+  };
+};
+
+/** Directed edge between forward usage nodes. */
+export type UsageEdge = {
+  /** Source usage node identifier. */
+  from: NodeId;
+  /** Target usage node identifier. */
+  to: NodeId;
+  /** Classification of the usage relationship. */
+  kind: UsageEdgeKind;
+};
+
+/** Classification of a forward usage edge. */
+export type UsageEdgeKind =
+  /** A usage reads or writes the tracked value. */
+  | "read"
+  /** An importer uses an exported tracked value. */
+  | "import"
+  /** A value continues toward another known location. */
+  | "continuation";
 
 /**
  * Slice result produced by the backward slicer before assembly.
@@ -220,6 +646,8 @@ export type SlicedFile = {
   ms: MagicString;
   /** Original, unmodified source. */
   originalSource: SourceText;
+  /** Enclosing statement ranges retained because a nested table could not be safely pruned. */
+  precisionLosses: OffsetRange[];
 };
 
 /**
@@ -313,7 +741,9 @@ export type EdgeKind =
   /** `to` closes over `from`. */
   | "closure"
   /** `to` imports `from`. */
-  | "import";
+  | "import"
+  /** `to` is structurally placed at the origin represented by `from`. */
+  | "structural-origin";
 
 /**
  * Issue discovered during slicing.
@@ -356,7 +786,13 @@ export type IssueKind =
   /** `Foo.prototype.x =` — may affect instances. */
   | "prototype-mutation"
   /** `this.method()` — receiver unknown statically. */
-  | "this-call";
+  | "this-call"
+  /** `require(expr)` — module target unknown statically. */
+  | "dynamic-require"
+  /** Forward traversal reached its configured safety cap. */
+  | "usage-cap-reached"
+  /** A call target could not be resolved by normal or plugin logic. */
+  | "unresolved-call-target";
 
 /**
  * Discriminated union describing the outcome of resolving an import specifier.

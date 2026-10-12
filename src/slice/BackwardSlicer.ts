@@ -1,14 +1,17 @@
-import type { CallExpression } from "@oxc-project/types";
-import { assertNever } from "assert-never";
-import { visitorKeys } from "oxc-parser";
-
-import { isAstNode, walkAst } from "@/helpers";
+import { isAstNode, moduleCallKey, tryResolveModuleCall, walkAst } from "@/helpers";
+import {
+  collectExports,
+  findCommonJsExportSite,
+  findCommonJsRequireSites,
+} from "@/helpers/module-boundary";
 import { BindingResolver } from "@/slice/BindingResolver";
 import { SeedExpander } from "@/slice/SeedExpander";
+import { SliceTraceCache } from "@/slice/SliceTraceCache";
 import type {
   AbsolutePath,
   AstNode,
   BindingKind,
+  CommonJsRequireSite,
   DependencyEdge,
   DependencyKind,
   DependencyNode,
@@ -17,6 +20,8 @@ import type {
   IIssueCollector,
   IssueKind,
   IssueResolution,
+  ModuleResolutionPlugin,
+  ModuleResolutionResult,
   NodeId,
   OffsetRange,
   ParsedFile,
@@ -24,9 +29,14 @@ import type {
   SeedNode,
   SliceResult,
   SourceText,
+  TraceCacheOptions,
+  TraceCacheStats,
 } from "@/types";
 import type { IParser, IResolver, IShaker } from "@/types";
 import { StartPointNotFoundError } from "@/types";
+import type { CallExpression } from "@oxc-project/types";
+import { assertNever } from "assert-never";
+import { visitorKeys } from "oxc-parser";
 
 /**
  * Work item representing a named binding lookup.
@@ -190,6 +200,7 @@ const isSeedNode = (node: AstNode): node is SeedNode =>
   node.type === "ReturnStatement" ||
   node.type === "VariableDeclaration" ||
   node.type === "ExpressionStatement" ||
+  node.type === "FunctionDeclaration" ||
   node.type === "IfStatement" ||
   node.type === "SwitchStatement" ||
   node.type === "WhileStatement" ||
@@ -209,7 +220,12 @@ const isSeedNode = (node: AstNode): node is SeedNode =>
 const findSeedNode = (
   parsedFile: ParsedFile,
   startPoint: OffsetRange,
-): { seedNode: SeedNode; subExprRange: OffsetRange | null } => {
+): {
+  /** Statement or expression selected as the slice seed. */
+  seedNode: SeedNode;
+  /** Selected range inside the seed node, when the request targets a sub-expression. */
+  subExprRange: OffsetRange | null;
+} => {
   const root = parsedFile.ast;
   const innerNode = findSmallestContainingNode(root, startPoint);
 
@@ -274,6 +290,11 @@ const walkAstWithSkip = (
 ): void => {
   const seen = new Set<AstNode>();
 
+  /**
+   * Visit each node once while allowing selected subtrees to be skipped.
+   * @param node Current node in the subtree traversal.
+   * @param parent Parent AST node, when one exists.
+   */
   const traverse = (node: AstNode, parent: AstNode | null): void => {
     if (seen.has(node)) {
       return;
@@ -414,14 +435,14 @@ const collectIdentifierDependencies = (
         return;
       }
 
-      const isCallee = parent?.type === "CallExpression" && parent.callee === node;
-      const edgeKind: EdgeKind = isCallee ? "call" : "data-flow";
+      const callSite = findCalleeCallSite(root, node);
+      const edgeKind: EdgeKind = callSite ? "call" : "data-flow";
 
       dependencies.push({
         name: node.name,
         node,
         edgeKind,
-        callSite: isCallee ? parent : undefined,
+        callSite,
       });
       seen.add(node.name);
     },
@@ -429,6 +450,45 @@ const collectIdentifierDependencies = (
   );
 
   return dependencies;
+};
+
+/**
+ * Find the identifier at the root of a direct or member-expression callee.
+ *
+ * @param callee Callee expression to inspect.
+ * @returns Root identifier or null when the callee has no identifier root.
+ */
+const findCalleeRootIdentifier = (callee: AstNode): AstNode | null => {
+  let current: AstNode = callee;
+
+  while (current.type === "MemberExpression") {
+    current = current.object;
+  }
+
+  return current.type === "Identifier" ? current : null;
+};
+
+/**
+ * Find the call site whose callee is rooted at an identifier.
+ *
+ * @param root AST subtree containing the identifier.
+ * @param identifier Identifier to locate as a callee root.
+ * @returns Matching call expression or undefined.
+ */
+const findCalleeCallSite = (root: AstNode, identifier: AstNode): CallExpression | undefined => {
+  let match: CallExpression | undefined;
+
+  walkAst(root, (node) => {
+    if (match !== undefined || node.type !== "CallExpression") {
+      return;
+    }
+
+    if (findCalleeRootIdentifier(node.callee) === identifier) {
+      match = node;
+    }
+  });
+
+  return match;
 };
 
 /**
@@ -546,6 +606,192 @@ const findEnclosingFunction = (root: AstNode, target: AstNode): FunctionNode | n
   });
 
   return match;
+};
+
+/**
+ * Find the first directly traceable structural context containing a function.
+ *
+ * @param root Parsed-file AST root.
+ * @param functionNode Function whose placement should be traced.
+ * @param parsedFile Parsed file containing the function.
+ * @param bindingResolver Resolver used for call-argument parameters.
+ * @returns Structural origin node, or null when the function is standalone.
+ */
+const findStructuralOriginNode = (
+  root: AstNode,
+  functionNode: FunctionNode,
+  parsedFile: ParsedFile,
+  bindingResolver: BindingResolver,
+): AstNode | null => {
+  const parents = new Map<AstNode, AstNode | null>();
+  walkAst(root, (node, parent) => {
+    parents.set(node, parent);
+  });
+
+  let current: AstNode = functionNode;
+  let literalFallback: AstNode | null = null;
+  const visited = new Set<AstNode>();
+
+  while (!visited.has(current)) {
+    visited.add(current);
+    const parent = parents.get(current);
+
+    if (!parent) {
+      return literalFallback;
+    }
+
+    switch (parent.type) {
+      case "Property": {
+        if (parent.value !== current) {
+          return literalFallback;
+        }
+        current = parent;
+        continue;
+      }
+      case "ObjectExpression":
+      case "ArrayExpression": {
+        literalFallback = parent;
+        current = parent;
+        continue;
+      }
+      case "VariableDeclarator": {
+        return parent.init === current ? parent : literalFallback;
+      }
+      case "AssignmentExpression": {
+        return parent.right === current ? parent.left : literalFallback;
+      }
+      case "ExportDefaultDeclaration":
+      case "ExportNamedDeclaration": {
+        return parent;
+      }
+      case "MethodDefinition": {
+        return parent.value === current ? parent : literalFallback;
+      }
+      case "TSAsExpression":
+      case "TSSatisfiesExpression": {
+        current = parent;
+        continue;
+      }
+      case "CallExpression": {
+        const argumentIndex = parent.arguments.findIndex(
+          (argument) => isAstNode(argument) && argument === current,
+        );
+
+        if (argumentIndex >= 0 && parent.callee.type === "Identifier") {
+          const resolved = bindingResolver.resolveWithScope(
+            parent.callee.name,
+            parent.callee,
+            parsedFile,
+          );
+
+          if (resolved && isFunctionNode(resolved.node)) {
+            const parameter = resolved.node.params[argumentIndex];
+            if (parameter && parameter.type === "Identifier") {
+              return parameter;
+            }
+          }
+        }
+
+        return literalFallback;
+      }
+      default:
+        break;
+    }
+
+    return literalFallback;
+  }
+
+  return literalFallback;
+};
+
+/**
+ * Check whether a function has a discoverable direct call site.
+ *
+ * @param root Parsed-file AST root.
+ * @param functionNode Function whose calls should be checked.
+ * @param parsedFile Parsed file containing the function.
+ * @param bindingResolver Resolver used to validate call bindings.
+ * @returns True when a direct call to the function can be resolved.
+ */
+const hasDiscoverableParameterCallSite = (
+  root: AstNode,
+  functionNode: FunctionNode,
+  parsedFile: ParsedFile,
+  bindingResolver: BindingResolver,
+): boolean => {
+  let functionName: SourceText | null =
+    functionNode.id?.type === "Identifier" ? functionNode.id.name : null;
+
+  if (functionName === null) {
+    walkAst(root, (node) => {
+      if (functionName !== null || node.type !== "VariableDeclarator") {
+        return;
+      }
+
+      if (node.id.type === "Identifier" && node.init === functionNode) {
+        functionName = node.id.name;
+      }
+    });
+  }
+
+  if (functionName === null) {
+    return false;
+  }
+
+  let found = false;
+  walkAst(root, (node) => {
+    if (found || node.type !== "CallExpression" || node.callee.type !== "Identifier") {
+      return;
+    }
+
+    if (node.callee.name !== functionName) {
+      return;
+    }
+
+    const resolved = bindingResolver.resolveWithScope(node.callee.name, node.callee, parsedFile);
+    found =
+      resolved?.node === functionNode ||
+      (resolved?.node.type === "VariableDeclarator" && resolved.node.init === functionNode);
+  });
+
+  return found;
+};
+
+/**
+ * Classify a structural-origin node for the dependency graph.
+ *
+ * @param origin Structural origin AST node.
+ * @param parsedFile Parsed file containing the origin.
+ * @param bindingResolver Resolver used to classify identifier origins.
+ * @returns Dependency node kind for the origin.
+ */
+const classifyStructuralOrigin = (
+  origin: AstNode,
+  parsedFile: ParsedFile,
+  bindingResolver: BindingResolver,
+): DependencyKind => {
+  if (origin.type === "MethodDefinition" || origin.type === "ExportDefaultDeclaration") {
+    return "function";
+  }
+
+  if (origin.type === "Identifier") {
+    const resolved = bindingResolver.resolveWithScope(origin.name, origin, parsedFile);
+
+    if (resolved?.node === origin) {
+      return "parameter";
+    }
+
+    if (resolved?.node.type === "VariableDeclarator") {
+      return resolved.scopeKind === "program" ? "global" : "variable";
+    }
+  }
+
+  if (origin.type === "VariableDeclarator" && origin.id.type === "Identifier") {
+    const resolved = bindingResolver.resolveWithScope(origin.id.name, origin, parsedFile);
+    return resolved?.scopeKind === "program" ? "global" : "variable";
+  }
+
+  return "variable";
 };
 
 /**
@@ -709,6 +955,9 @@ const emitIssue = (
     "indirect-call": "Indirect call detected.",
     "prototype-mutation": "Prototype mutation detected.",
     "this-call": "this-call detected.",
+    "dynamic-require": "Dynamic require detected.",
+    "usage-cap-reached": "Usage node cap reached.",
+    "unresolved-call-target": "Unresolved call target.",
   };
 
   const resolutions: Record<IssueKind, IssueResolution> = {
@@ -722,6 +971,9 @@ const emitIssue = (
     "indirect-call": "included",
     "prototype-mutation": "flagged-only",
     "this-call": "included",
+    "dynamic-require": "included",
+    "usage-cap-reached": "flagged-only",
+    "unresolved-call-target": "leaf",
   };
 
   collector.add({
@@ -777,6 +1029,9 @@ export class BackwardSlicer {
   private readonly shaker: IShaker;
   private readonly collector: IIssueCollector;
   private readonly seedExpander: SeedExpander;
+  private readonly moduleResolutionPlugins: readonly ModuleResolutionPlugin[];
+  private readonly moduleResolutionCache: ReadonlyMap<SourceText, ModuleResolutionResult>;
+  private readonly traceCache: SliceTraceCache;
 
   /**
    * Initialize a backward slicer with the required collaborators.
@@ -785,14 +1040,33 @@ export class BackwardSlicer {
    * @param resolver Resolver used for import bindings.
    * @param shaker Shaker used for intra-function pruning.
    * @param collector Issue collector to receive slice issues.
+   * @param moduleResolutionPlugins Plugins that resolve nonstandard module calls.
+   * @param moduleResolutionCache Cached outcomes of module plugin resolution.
+   * @param traceCache Limits for computed graph retention.
    */
-  constructor(parser: IParser, resolver: IResolver, shaker: IShaker, collector: IIssueCollector) {
+  constructor(
+    parser: IParser,
+    resolver: IResolver,
+    shaker: IShaker,
+    collector: IIssueCollector,
+    moduleResolutionPlugins: readonly ModuleResolutionPlugin[] = [],
+    moduleResolutionCache: ReadonlyMap<SourceText, ModuleResolutionResult> = new Map(),
+    traceCache?: TraceCacheOptions,
+  ) {
     this.parser = parser;
     this.resolver = resolver;
     this.shaker = shaker;
     this.collector = collector;
     this.seedExpander = new SeedExpander();
+    this.moduleResolutionPlugins = moduleResolutionPlugins;
+    this.moduleResolutionCache = moduleResolutionCache;
+    this.traceCache = new SliceTraceCache(traceCache);
   }
+
+  /** Inspect computed graph reuse and bounded retention.
+   * @returns Cache counters for this slicer.
+   */
+  readonly getTraceCacheStats = (): TraceCacheStats => this.traceCache.stats();
 
   /**
    * Slice dependencies backward from the provided start point.
@@ -800,6 +1074,7 @@ export class BackwardSlicer {
    * @param entryFile Absolute entry file path.
    * @param startPoint Start-point range within the entry file.
    * @param parsedFiles Parsed file map keyed by absolute path.
+   * @param shake Whether to mark unused function statements for pruning.
    * @returns Slice result containing nodes, edges, and visited IDs.
    * @throws {StartPointNotFoundError} When the start point does not map to any node.
    */
@@ -807,12 +1082,30 @@ export class BackwardSlicer {
     entryFile: AbsolutePath,
     startPoint: OffsetRange,
     parsedFiles: Map<AbsolutePath, ParsedFile>,
+    shake = true,
   ): SliceResult => {
     const entryParsed = parsedFiles.get(entryFile);
 
     if (!entryParsed) {
       throw new StartPointNotFoundError(entryFile, startPoint);
     }
+
+    this.traceCache.synchronize(parsedFiles);
+    const exactKey = JSON.stringify([
+      "selection",
+      entryFile,
+      startPoint.start,
+      startPoint.end,
+      shake,
+    ]);
+    const exact = this.traceCache.read(exactKey);
+    if (exact) {
+      for (const issue of exact.issues) {
+        this.collector.add(issue);
+      }
+      return exact.slice;
+    }
+    const initialIssueCount = this.collector.getAll().length;
 
     const bindingResolver = new BindingResolver();
     const nodes: DependencyNode[] = [];
@@ -1002,7 +1295,12 @@ export class BackwardSlicer {
       importNode: AstNode,
       localName: SourceText,
       fromFile: AbsolutePath,
-    ): { result: ResolveResult; importedName: SourceText | null } => {
+    ): {
+      /** Outcome of resolving the import's source module. */
+      result: ResolveResult;
+      /** Exported name requested by the local import binding, when found. */
+      importedName: SourceText | null;
+    } => {
       if (importNode.type !== "ImportDeclaration") {
         return { result: { kind: "failed" }, importedName: null };
       }
@@ -1044,8 +1342,10 @@ export class BackwardSlicer {
       visited.add(functionId);
 
       const isNested = findEnclosingFunction(parsedFiles.get(file)?.ast ?? fnNode, fnNode) !== null;
-      const shakenRanges = this.shaker.shake(fnNode, source);
-      addShakenNodes(fnNode, file, source, shakenRanges);
+      if (shake) {
+        const shakenRanges = this.shaker.shake(fnNode, source);
+        addShakenNodes(fnNode, file, source, shakenRanges);
+      }
 
       const returnExpressions = collectReturnExpressions(fnNode);
       const dependencies: IdentifierDependency[] = [];
@@ -1319,11 +1619,221 @@ export class BackwardSlicer {
       );
       addEdge(ownerNodeId, parameterNode.id, resolvedEdgeKind);
 
-      if (!visited.has(parameterNode.id)) {
+      const isNewParameter = !visited.has(parameterNode.id);
+      if (isNewParameter) {
         visited.add(parameterNode.id);
       }
 
+      if (isNewParameter && isFunctionNode(resolvedScopeNode)) {
+        const parsedFile = parsedFiles.get(file);
+
+        if (
+          parsedFile &&
+          !hasDiscoverableParameterCallSite(
+            parsedFile.ast,
+            resolvedScopeNode,
+            parsedFile,
+            bindingResolver,
+          )
+        ) {
+          const origin = findStructuralOriginNode(
+            parsedFile.ast,
+            resolvedScopeNode,
+            parsedFile,
+            bindingResolver,
+          );
+
+          if (origin) {
+            const originNode = handleResolvedNode(
+              origin,
+              file,
+              source,
+              classifyStructuralOrigin(origin, parsedFile, bindingResolver),
+              false,
+            );
+            addEdge(parameterNode.id, originNode.id, "structural-origin");
+          }
+        }
+      }
+
       return parameterNode;
+    };
+
+    /**
+     * Process the exported bindings from a module claimed by a plugin.
+     *
+     * @param targetFile Resolved module file.
+     * @param targetParsed Parsed module file.
+     * @param ownerNodeId Node owning the module call.
+     * @param processedFiles Module files already traversed through plugins.
+     * @returns The dependency node produced for the plugin-resolved module.
+     */
+    const processPluginModule = (
+      targetFile: AbsolutePath,
+      targetParsed: ParsedFile,
+      ownerNodeId: NodeId,
+      processedFiles: Set<AbsolutePath>,
+    ): void => {
+      if (processedFiles.has(targetFile)) {
+        return;
+      }
+
+      processedFiles.add(targetFile);
+
+      for (const exported of collectExports(targetParsed.ast)) {
+        if (exported.source !== undefined) {
+          const nextResult = this.resolver.resolve(exported.source, targetFile);
+
+          switch (nextResult.kind) {
+            case "resolved": {
+              const nextParsed = parsedFiles.get(nextResult.absolutePath);
+
+              if (nextParsed !== undefined) {
+                processPluginModule(
+                  nextResult.absolutePath,
+                  nextParsed,
+                  ownerNodeId,
+                  processedFiles,
+                );
+              }
+              break;
+            }
+            case "failed":
+            case "ignored":
+              break;
+            default:
+              return assertNever(nextResult);
+          }
+
+          continue;
+        }
+
+        const localName = exported.localName;
+        if (localName === undefined || localName === "*" || localName === "default") {
+          continue;
+        }
+
+        const resolved = bindingResolver.resolveWithScope(
+          localName,
+          targetParsed.ast,
+          targetParsed,
+        );
+
+        if (resolved === null) {
+          continue;
+        }
+
+        if (isFunctionNode(resolved.node)) {
+          processResolvedFunction(
+            resolved.node,
+            targetFile,
+            targetParsed.source,
+            ownerNodeId,
+            "import",
+            null,
+            false,
+          );
+          continue;
+        }
+
+        switch (resolved.node.type) {
+          case "VariableDeclarator": {
+            processResolvedVariable(
+              resolved.node,
+              resolved.scopeKind,
+              targetFile,
+              targetParsed.source,
+              ownerNodeId,
+              "import",
+              false,
+              targetParsed.ast,
+              resolved.scopeNode,
+            );
+            continue;
+          }
+          case "ClassDeclaration": {
+            processResolvedClass(
+              resolved.node,
+              targetFile,
+              targetParsed.source,
+              ownerNodeId,
+              "import",
+              false,
+              targetParsed.ast,
+              resolved.scopeNode,
+            );
+            break;
+          }
+          default:
+            break;
+        }
+      }
+    };
+
+    /**
+     * Resolve a non-standard module call through configured plugins.
+     *
+     * @param callSite Call expression being resolved.
+     * @param file Absolute path containing the call.
+     * @param source Source text containing the call.
+     * @param ownerNodeId Node owning the call.
+     * @param edgeKind Edge kind linking the owner to the call.
+     * @returns True when a plugin claimed the call.
+     */
+    const processPluginCall = (
+      callSite: CallExpression,
+      file: AbsolutePath,
+      source: SourceText,
+      ownerNodeId: NodeId,
+      edgeKind: EdgeKind,
+    ): boolean => {
+      const cacheKey = moduleCallKey(file, callSite);
+      const pluginResult = this.moduleResolutionCache.has(cacheKey)
+        ? (this.moduleResolutionCache.get(cacheKey) ?? null)
+        : tryResolveModuleCall(callSite, source, file, this.moduleResolutionPlugins);
+
+      if (pluginResult === null) {
+        return false;
+      }
+
+      const callNode = handleResolvedNode(callSite, file, source, "call-site", false);
+      addEdge(ownerNodeId, callNode.id, edgeKind);
+
+      const resolution = this.resolver.resolve(pluginResult.specifier, file);
+
+      switch (resolution.kind) {
+        case "resolved": {
+          const targetParsed = parsedFiles.get(resolution.absolutePath);
+
+          if (targetParsed === undefined) {
+            processUnresolved(callSite, file, source, callNode.id, "import");
+            return true;
+          }
+
+          processPluginModule(
+            resolution.absolutePath,
+            targetParsed,
+            callNode.id,
+            new Set<AbsolutePath>(),
+          );
+          return true;
+        }
+        case "ignored":
+          emitIssue(
+            this.collector,
+            "ignored-path",
+            rangeFromNode(callSite),
+            file,
+            resolution.matchedPattern,
+          );
+          handleResolvedNode(callSite, file, source, "ignored-leaf", false);
+          return true;
+        case "failed":
+          processUnresolved(callSite, file, source, callNode.id, "import");
+          return true;
+        default:
+          return assertNever(resolution);
+      }
     };
 
     /**
@@ -1356,8 +1866,8 @@ export class BackwardSlicer {
             return importDependency;
           }
 
-          const targetFile = result.absolutePath;
-          const targetParsed = parsedFiles.get(targetFile);
+          let targetFile = result.absolutePath;
+          let targetParsed = parsedFiles.get(targetFile);
 
           if (!targetParsed) {
             emitIssue(this.collector, "unresolved-dependency", rangeFromNode(importNode), file);
@@ -1365,7 +1875,10 @@ export class BackwardSlicer {
             return importDependency;
           }
 
-          let lookup = findExportedBinding(targetParsed, importedName);
+          let targetName = importedName;
+          let targetOwnerId = importDependency.id;
+          const visitedExports = new Map<AbsolutePath, Set<SourceText>>();
+          let lookup = findExportedBinding(targetParsed, targetName);
 
           while (lookup && lookup.kind === "re-export") {
             const reExportNode = handleResolvedNode(
@@ -1375,7 +1888,21 @@ export class BackwardSlicer {
               "re-export",
               false,
             );
-            addEdge(importDependency.id, reExportNode.id, "import");
+            addEdge(targetOwnerId, reExportNode.id, "import");
+
+            const exportedNames = visitedExports.get(targetFile) ?? new Set<SourceText>();
+            if (exportedNames.has(targetName)) {
+              emitIssue(
+                this.collector,
+                "unresolved-dependency",
+                rangeFromNode(lookup.node),
+                targetFile,
+              );
+              return importDependency;
+            }
+            exportedNames.add(targetName);
+            visitedExports.set(targetFile, exportedNames);
+            targetOwnerId = reExportNode.id;
 
             const nextResult = this.resolver.resolve(lookup.source, targetFile);
 
@@ -1415,43 +1942,20 @@ export class BackwardSlicer {
               return importDependency;
             }
 
-            lookup = findExportedBinding(nextParsed, lookup.localName);
-
-            if (lookup?.kind === "declaration") {
-              const bindingNode = lookup.node;
-              const binding = handleResolvedNode(
-                bindingNode,
-                nextParsed.absolutePath,
-                nextParsed.source,
-                isFunctionNode(bindingNode) ? "function" : "variable",
-                false,
+            const nextLookup = findExportedBinding(nextParsed, lookup.localName);
+            if (!nextLookup) {
+              emitIssue(
+                this.collector,
+                "unresolved-dependency",
+                rangeFromNode(lookup.node),
+                targetFile,
               );
-              addEdge(importDependency.id, binding.id, "import");
-
-              if (isFunctionNode(bindingNode)) {
-                processResolvedFunction(
-                  bindingNode,
-                  nextParsed.absolutePath,
-                  nextParsed.source,
-                  importDependency.id,
-                  "import",
-                  callSiteOwnerId,
-                  false,
-                );
-              } else if (bindingNode.type === "VariableDeclarator") {
-                processResolvedVariable(
-                  bindingNode,
-                  "program",
-                  nextParsed.absolutePath,
-                  nextParsed.source,
-                  importDependency.id,
-                  "import",
-                  false,
-                  importNode,
-                  bindingNode,
-                );
-              }
+              return importDependency;
             }
+            targetName = lookup.localName;
+            targetFile = nextParsed.absolutePath;
+            targetParsed = nextParsed;
+            lookup = nextLookup;
           }
 
           if (lookup && lookup.kind === "declaration") {
@@ -1463,14 +1967,14 @@ export class BackwardSlicer {
               isFunctionNode(bindingNode) ? "function" : "variable",
               false,
             );
-            addEdge(importDependency.id, binding.id, "import");
+            addEdge(targetOwnerId, binding.id, "import");
 
             if (isFunctionNode(bindingNode)) {
               processResolvedFunction(
                 bindingNode,
                 targetFile,
                 targetParsed.source,
-                importDependency.id,
+                targetOwnerId,
                 "import",
                 callSiteOwnerId,
                 false,
@@ -1481,7 +1985,7 @@ export class BackwardSlicer {
                 "program",
                 targetFile,
                 targetParsed.source,
-                importDependency.id,
+                targetOwnerId,
                 "import",
                 false,
                 importNode,
@@ -1539,6 +2043,148 @@ export class BackwardSlicer {
       return leafNode;
     };
 
+    /**
+     * Add the dependencies for one statically identified CommonJS require site.
+     *
+     * Resolves the module, links its export to the importing binding, and
+     * records unresolved or ignored targets as leaf nodes with their issues.
+     * This helper mutates the current slice's nodes, edges, and issue collector.
+     *
+     * @param site The require call, containing declaration, and imported binding.
+     * @param item The worklist item that led to this require site.
+     * @param source Source text for the importing file.
+     */
+    const processRequireSite = (
+      site: CommonJsRequireSite,
+      item: IdentifierWorkItem,
+      source: SourceText,
+    ): void => {
+      const importNode = handleResolvedNode(site.boundary, item.file, source, "import", false);
+      addEdge(item.ownerNodeId, importNode.id, "import");
+
+      const resolution = this.resolver.resolve(site.binding.specifier, item.file);
+      switch (resolution.kind) {
+        case "failed":
+          processUnresolved(site.call, item.file, source, importNode.id, "import");
+          return;
+        case "ignored": {
+          emitIssue(
+            this.collector,
+            "ignored-path",
+            rangeFromNode(site.call),
+            item.file,
+            resolution.matchedPattern,
+          );
+          const leaf = handleResolvedNode(site.call, item.file, source, "ignored-leaf", false);
+          addEdge(importNode.id, leaf.id, "import");
+          return;
+        }
+        case "resolved":
+          break;
+        default:
+          assertNever(resolution);
+      }
+
+      const targetFile = resolution.absolutePath;
+      const targetParsed = parsedFiles.get(targetFile);
+      if (targetParsed === undefined) {
+        processUnresolved(site.call, item.file, source, importNode.id, "import");
+        return;
+      }
+
+      const memberCallee = item.callSite?.callee;
+      const memberName =
+        site.binding.importedName === "*" &&
+        memberCallee?.type === "MemberExpression" &&
+        memberCallee.object.type === "Identifier" &&
+        memberCallee.object.name === site.binding.localAlias &&
+        !memberCallee.computed &&
+        memberCallee.property.type === "Identifier"
+          ? memberCallee.property.name
+          : null;
+      const requestedName =
+        site.binding.importedName === "*" ? (memberName ?? "default") : site.binding.importedName;
+      const commonJsExport =
+        findCommonJsExportSite(targetParsed.ast, requestedName) ??
+        (site.binding.importedName === "*" && requestedName !== "default"
+          ? findCommonJsExportSite(targetParsed.ast, "default")
+          : null);
+
+      let bindingNode: AstNode | null = null;
+      let bindingScope: AstNode = targetParsed.ast;
+      let exportOwner = importNode.id;
+      if (commonJsExport !== null) {
+        const exportNode = handleResolvedNode(
+          commonJsExport.boundary,
+          targetFile,
+          targetParsed.source,
+          "re-export",
+          false,
+        );
+        addEdge(importNode.id, exportNode.id, "import");
+        exportOwner = exportNode.id;
+        bindingScope = commonJsExport.boundary;
+        const localName = commonJsExport.binding.localName;
+        if (localName !== undefined) {
+          bindingNode =
+            bindingResolver.resolveWithScope(localName, commonJsExport.boundary, targetParsed)
+              ?.node ?? null;
+        } else if (
+          commonJsExport.boundary.type === "AssignmentExpression" &&
+          commonJsExport.boundary.right.type === "Literal"
+        ) {
+          return;
+        }
+      } else {
+        const esmExport = findExportedBinding(targetParsed, requestedName);
+        if (esmExport?.kind === "declaration") {
+          bindingNode = esmExport.node;
+        }
+      }
+
+      if (bindingNode === null) {
+        processUnresolved(site.call, item.file, source, importNode.id, "import");
+        return;
+      }
+
+      if (isFunctionNode(bindingNode)) {
+        processResolvedFunction(
+          bindingNode,
+          targetFile,
+          targetParsed.source,
+          exportOwner,
+          "import",
+          item.callSite ? item.ownerNodeId : null,
+          false,
+        );
+      } else if (bindingNode.type === "VariableDeclarator") {
+        processResolvedVariable(
+          bindingNode,
+          "program",
+          targetFile,
+          targetParsed.source,
+          exportOwner,
+          "import",
+          false,
+          bindingScope,
+          bindingNode,
+        );
+      } else if (bindingNode.type === "ClassDeclaration") {
+        processResolvedClass(
+          bindingNode,
+          targetFile,
+          targetParsed.source,
+          exportOwner,
+          "import",
+          false,
+          bindingScope,
+          bindingNode,
+        );
+      } else {
+        processUnresolved(site.call, item.file, source, importNode.id, "import");
+      }
+    };
+
     const worklist: WorkItem[] = [];
 
     const { seedNode, subExprRange } = findSeedNode(entryParsed, startPoint);
@@ -1546,15 +2192,52 @@ export class BackwardSlicer {
     visited.add(startNode.id);
 
     const enclosingFunction = findEnclosingFunction(entryParsed.ast, seedNode);
-    if (enclosingFunction) {
+    if (enclosingFunction && shake) {
       const shakenRanges = this.shaker.shake(enclosingFunction, entryParsed.source);
       addShakenNodes(enclosingFunction, entryFile, entryParsed.source, shakenRanges);
     }
 
     const seedNames = new Set(this.seedExpander.expand(seedNode, subExprRange));
-    const seedDependencies = collectIdentifierDependencies(seedNode, subExprRange, true).filter(
-      (dep) => seedNames.has(dep.name),
-    );
+    const seedDependencyRoot =
+      seedNode.type === "FunctionDeclaration" && seedNode.body !== null ? seedNode.body : seedNode;
+    const seedDependencies = collectIdentifierDependencies(
+      seedDependencyRoot,
+      subExprRange,
+      subExprRange === null,
+    ).filter((dep) => seedNames.has(dep.name));
+
+    // Only a bare variable reference has an occurrence-independent selected graph.
+    // Calls, parameters, unresolved names, and wider expressions keep their own keys.
+    const soleDependency = seedDependencies.length === 1 ? seedDependencies[0] : undefined;
+    const selectedBinding =
+      this.traceCache.isEnabled() &&
+      !shake &&
+      soleDependency?.node.type === "Identifier" &&
+      soleDependency.callSite === undefined &&
+      soleDependency.node.start === startPoint.start &&
+      soleDependency.node.end === startPoint.end
+        ? bindingResolver.resolveWithScope(soleDependency.name, soleDependency.node, entryParsed)
+        : null;
+    const bindingId =
+      selectedBinding?.node.type === "VariableDeclarator"
+        ? buildNodeId(entryFile, rangeFromNode(selectedBinding.node))
+        : undefined;
+    const bindingKey = bindingId
+      ? JSON.stringify([
+          "binding",
+          bindingId,
+          seedNode.type,
+          enclosingFunction ? rangeFromNode(enclosingFunction) : null,
+        ])
+      : undefined;
+    const reused = bindingKey ? this.traceCache.read(bindingKey, startNode) : undefined;
+    if (reused) {
+      for (const issue of reused.issues) {
+        this.collector.add(issue);
+      }
+      return reused.slice;
+    }
+    this.traceCache.miss();
 
     for (const dependency of seedDependencies) {
       worklist.push(buildWorkItem(dependency, startNode.id, entryFile, seedNode, false));
@@ -1591,7 +2274,32 @@ export class BackwardSlicer {
         continue;
       }
 
-      const resolved = bindingResolver.resolveWithScope(item.name, item.scopeNode, parsedFile);
+      const resolved =
+        selectedBinding && item.referenceNode === soleDependency?.node
+          ? selectedBinding
+          : bindingResolver.resolveWithScope(item.name, item.referenceNode, parsedFile);
+
+      const requireTarget =
+        item.name === "require" ? (item.callSite ?? item.referenceNode) : resolved?.node;
+      const requireSites =
+        requireTarget === undefined
+          ? []
+          : findCommonJsRequireSites(
+              parsedFile.ast,
+              requireTarget,
+              item.name === "require" ? undefined : item.name,
+            ).filter(
+              (site) =>
+                site.call.type === "CallExpression" &&
+                site.call.callee.type === "Identifier" &&
+                bindingResolver.resolveWithScope("require", site.call.callee, parsedFile) === null,
+            );
+      if (requireSites.length > 0) {
+        for (const site of requireSites) {
+          processRequireSite(site, item, parsedFile.source);
+        }
+        continue;
+      }
 
       if (!resolved) {
         processUnresolved(
@@ -1657,6 +2365,28 @@ export class BackwardSlicer {
           break;
         }
         case "parameter": {
+          if (
+            item.callSite !== undefined &&
+            processPluginCall(
+              item.callSite,
+              item.file,
+              parsedFile.source,
+              item.ownerNodeId,
+              item.edgeKind,
+            )
+          ) {
+            break;
+          }
+
+          if (item.callSite !== undefined) {
+            emitIssue(
+              this.collector,
+              "unresolved-call-target",
+              rangeFromNode(item.callSite),
+              item.file,
+            );
+          }
+
           processResolvedParameter(
             resolved.node,
             item.file,
@@ -1699,6 +2429,26 @@ export class BackwardSlicer {
       }
     }
 
-    return { nodes, edges, visitedRanges: visited };
+    const slice = { nodes, edges, visitedRanges: visited };
+    const issues = this.collector.getAll().slice(initialIssueCount);
+    // Plugins may add parsed files during a crawl; synchronize the final snapshot.
+    this.traceCache.synchronize(parsedFiles);
+    this.traceCache.write(exactKey, { slice, issues });
+    if (
+      bindingKey &&
+      bindingId !== startNode.id &&
+      !nodes.some((node) => node.kind === "parameter") &&
+      edges.filter((edge) => edge.from === startNode.id).every((edge) => edge.to === bindingId) &&
+      !edges.some((edge) => edge.to === startNode.id) &&
+      !issues.some(
+        (issue) =>
+          issue.file === entryFile &&
+          issue.range.start < seedNode.end &&
+          issue.range.end > seedNode.start,
+      )
+    ) {
+      this.traceCache.write(bindingKey, { slice, issues });
+    }
+    return slice;
   };
 }

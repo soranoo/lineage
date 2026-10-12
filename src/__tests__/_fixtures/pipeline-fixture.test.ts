@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import type { AbsolutePath, IssueKind, SourceText, TrackResult, TrackerIssue } from "@/types";
 import { findRange, readFixtureSource, toFixturePath } from "@/__tests__/utils";
 import { DependencyTracker } from "@/index";
-import type { AbsolutePath, IssueKind, SourceText, TrackResult, TrackerIssue } from "@/types";
 
 /**
  * Run dependency tracking for a fixture file and fragment start point.

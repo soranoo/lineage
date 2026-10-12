@@ -31,7 +31,14 @@ import type {
   TrackerConfig,
   TrackerIssue,
 } from "@/index";
-import { DependencyTracker, offsetFromLineCol } from "@/index";
+
+import {
+  assembleSlicedOutput,
+  DependencyTracker,
+  offsetFromLineCol,
+  ProjectContext,
+  UsageTracker,
+} from "@/index";
 
 /**
  * Ensure key public entry types are available from the package root.
@@ -43,12 +50,21 @@ const assertType = <T>(value: T): void => {
 };
 
 describe("package entry exports", () => {
-  it("exposes only DependencyTracker and offsetFromLineCol as runtime values", async () => {
+  it("exposes tracker and output assembly runtime values", async () => {
     const entryModule = await import("@/index");
     const runtimeExportKeys = Object.keys(entryModule).sort();
 
-    expect(runtimeExportKeys).toEqual(["DependencyTracker", "offsetFromLineCol"]);
+    expect(runtimeExportKeys).toEqual([
+      "DependencyTracker",
+      "ProjectContext",
+      "UsageTracker",
+      "assembleSlicedOutput",
+      "offsetFromLineCol",
+    ]);
     expect(entryModule.DependencyTracker).toBe(DependencyTracker);
+    expect(entryModule.ProjectContext).toBe(ProjectContext);
+    expect(entryModule.UsageTracker).toBe(UsageTracker);
+    expect(entryModule.assembleSlicedOutput).toBe(assembleSlicedOutput);
     expect(entryModule.offsetFromLineCol).toBe(offsetFromLineCol);
   });
 

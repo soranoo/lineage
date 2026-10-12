@@ -12,6 +12,12 @@ Follow the lineage of any value, across every file.
 
 Give me a ⭐ if you like it.
 
+> [!CAUTION]\
+> **Breaking change in 2.0.0:** sliced file output is now opt-in. If your
+> code reads `result.files`, pass `output: { mode: "blank" }` to
+> `tracker.track()`. Calls without `output` return an empty `files` map. See
+> the [upgrade guide](docs/UPGRADE_GUIDE.md) for migration details.
+
 ---
 
 ## 📖 Table of Contents
@@ -19,9 +25,15 @@ Give me a ⭐ if you like it.
 - [📌 Knowledge Prerequisites](#-knowledge-prerequisites)
 - [✨ Features](#-features)
 - [🚀 Getting Started](#-getting-started)
+  - [Backward lineage (dependency tracking)](#backward-lineage-dependency-tracking)
+    - [Computed trace caching](#computed-trace-caching)
+  - [Usage tracking (forward lineage)](#usage-tracking-forward-lineage)
 - [⚙️ How It Works](#️-how-it-works)
 - [📦 API Reference](#-api-reference)
   - [DependencyTracker](#dependencytracker)
+  - [UsageTracker](#usagetracker)
+  - [ProjectContext](#projectcontext)
+  - [assembleSlicedOutput](#assembleslicedoutput)
   - [offsetFromLineCol](#offsetfromlinecol)
   - [TrackResult](#trackresult)
   - [nodes](#nodes--dependencynode)
@@ -54,11 +66,13 @@ It is recommended to have a basic understanding of the following concepts before
 ## ✨ Features
 
 - **Backward dependency slicing**: given any statement or expression as a start point, Lineage traces every variable, function, parameter, and import that could influence its value
+- **Computed trace caching**: reuse completed backward graphs with bounded LRU retention, safe binding reuse, and cache statistics. See the [caching guide](docs/TRACE_CACHING.md).
 - **Cross-file analysis**: follows `import` and `re-export` chains across your entire codebase, not just a single file
 - **Intra-function tree shaking**: statements inside a dependency function that do not contribute to its return value are identified and flagged separately
 - **Ignore patterns**: exclude folders or files from recursion using strings or RegExp (e.g. `generated/`, `/vendor/`); `node_modules` is always excluded implicitly
 - **Unresolved dependency reporting**: when a binding cannot be traced to a definition, Lineage keeps a placeholder leaf node in the graph instead of silently dropping it
 - **Dynamic pattern detection**: `eval`, computed properties, indirect calls, `arguments`, and other statically unresolvable patterns are detected and reported with the conservative action taken
+- **CommonJS module boundaries**: literal `require()` calls, `module.exports` and `exports.name` participate in module discovery and usage indexing alongside ESM imports and exports; dynamic requires are reported as `dynamic-require`
 
 ---
 
@@ -73,7 +87,21 @@ npm install @soranoo/lineage
 > [!TIP]\
 > Replace `npm` with `bun`, `yarn` or `pnpm` if you prefer those package managers.
 
-### Basic usage
+### Backward lineage (dependency tracking)
+
+`DependencyTracker` answers "what influences this code?" Start from a
+statement or expression and it walks backward through the variables,
+functions, parameters, imports, and module exports that can contribute to its
+value. The result is a transitive dependency graph, making it suitable for
+understanding a value's origins or extracting the code needed to compute it.
+
+The tracker follows resolved ESM and CommonJS module boundaries, records
+ignored and unresolved dependencies as explicit leaf nodes, and reports dynamic
+patterns that prevent a precise static answer. By default, it also marks
+statements inside included functions that do not contribute to a returned value
+as `shaken`; pass `shake: false` to retain complete function bodies.
+
+#### Basic usage
 
 ```ts
 import { DependencyTracker, offsetFromLineCol } from "@soranoo/lineage";
@@ -112,7 +140,8 @@ const tracker = new DependencyTracker();
 const result = await tracker.track({
   entryFile: SOURCE_PATH,
   startPoint: { start, end },
-  output: { mode: "blank" }, // "blank" (default) | "compact"
+  shake: true, // prune unused statements inside touched functions (default)
+  output: { mode: "blank" }, // "blank" or "compact"; output is opt-in
 });
 
 // Sliced source - non-dependency lines are blanked out
@@ -319,7 +348,7 @@ Output - 3:
 []
 ```
 
-### With ignore patterns
+#### With ignore patterns
 
 ```ts
 const tracker = new DependencyTracker({
@@ -334,7 +363,7 @@ const tracker = new DependencyTracker({
 > [!NOTE]\
 > `node_modules` is always an implicit ignore pattern regardless of what you pass to `ignorePatterns`. You never need to add it manually.
 
-### With virtual files (no disk writes)
+#### With virtual files (no disk writes)
 
 ```ts
 import { DependencyTracker, offsetFromLineCol } from "@soranoo/lineage";
@@ -377,7 +406,7 @@ console.log(result.issues);
 > Mix is supported, virtual files and physical disk files can participate in the same trace.
 > This works in both directions: a virtual entry can import real files, and a real entry can import virtual modules.
 
-### Reusing a tracker across multiple analyses
+#### Reusing a tracker across multiple analyses
 
 ```ts
 const tracker = new DependencyTracker();
@@ -398,11 +427,76 @@ const result2 = await tracker.track({
 > [!TIP]\
 > Each `track()` call returns an independent `TrackResult`. Results never bleed into each other - issues, nodes, and `MagicString` instances are all fresh per call.
 
+> [!NOTE]\
+> `output` is opt-in. When it is omitted, `result.files` is an empty `Map` and no `MagicString` output is assembled. Pass `output: { mode: "blank" }` to preserve the pre-2.0 behavior.
+
+#### Computed trace caching
+
+Reusing a `DependencyTracker` also reuses completed dependency graphs. The cache
+defaults to 128 keys and 8 MiB of estimated retained data. Hits refresh recency;
+insertion evicts the least recently used keys until both limits fit. Oversized
+graphs are returned without retention.
+
+Configure `traceCache.maxEntries` and `traceCache.maxBytes`, or set either to `0`
+to disable retention. Inspect `tracker.getTraceCacheStats()` for hits, binding
+hits, misses, current retention, lifetime peaks, and evictions. See the
+[computed trace caching guide](docs/TRACE_CACHING.md) for reuse rules, source
+invalidation, and memory accounting. Use a new tracker and parser context when
+sources or configuration change.
+
+The same tracker also caches per-file module discovery, plugin decisions and
+dynamic-pattern issues. Configure `preprocessingCache` independently with the
+same default limits and inspect `tracker.getPreprocessingCacheStats()`. Each
+request receives independent replayed issues. See the caching guide above.
+
+### Usage tracking (forward lineage)
+
+`DependencyTracker` answers "what influences this code?" by walking
+backward through definitions. `UsageTracker` answers the complementary
+question: "where is this declared value used?" It reports direct reads and
+writes in the declaration's lexical scope, including nested closures, and
+follows only unambiguous export/import boundaries.
+
+When a value is assigned, passed to a function, returned, spread, or written
+to a property, the result contains an `untraced-continuation`. It describes
+the next location when one is statically knowable, but does not follow ordinary
+data flow automatically. This keeps each forward query small and lets an
+external traversal decide which continuation to inspect next.
+
+```ts
+import { UsageTracker, offsetFromLineCol } from "@soranoo/lineage";
+
+const source = ["export const theme = 'light';", "const selectedTheme = theme;"].join("\n");
+
+const tracker = new UsageTracker({
+  virtualFiles: { "/virtual/theme.ts": source },
+});
+
+const start = offsetFromLineCol(source, 1, 14);
+const result = tracker.track({
+  entryFile: "/virtual/theme.ts",
+  startPoint: { start, end: start + "theme".length },
+});
+
+console.log(result.nodes); // declaration, export boundary, and continuation
+```
+
+For real files, pass `projectRoot` or `projectFiles` to bound the reverse
+import index. A `virtualFiles` map is the project boundary for virtual-only
+tracking. As with backward tracking, output assembly is opt-in through
+`output: { mode: "blank" }` or `output: { mode: "compact" }`.
+
 ---
 
 ## ⚙️ How It Works
 
-Lineage runs five phases every time `track()` is called:
+Lineage provides two complementary analysis directions. `DependencyTracker`
+builds a transitive backward slice; `UsageTracker` reports direct forward
+usages and follows module boundaries only.
+
+### Backward dependency tracking
+
+`DependencyTracker.track()` runs five phases:
 
 ```mermaid
 flowchart TD
@@ -430,7 +524,7 @@ flowchart TD
     style H fill:transparent,stroke:transparent
 ```
 
-### Cross-file resolution
+#### Cross-file resolution
 
 When the worklist encounters an import, it resolves the specifier using [`oxc-resolver`](https://github.com/oxc-project/oxc-resolver) and checks the result against the ignore filter before recursing:
 
@@ -463,7 +557,7 @@ flowchart TD
     style EndNotFound fill:#f8d7da,stroke:#dc3545,stroke-width:2px
 ```
 
-### Output graph shape
+#### Output graph shape
 
 For a simple three-function chain (`c` calls `b`, `b` calls `a`) (See above [section](#basic-usage) for the full code), the graph Lineage produces looks like this:
 
@@ -493,13 +587,50 @@ graph LR
 > [!NOTE]\
 > `const result = c(5, 6)` does **not** appear in the graph. Lineage traces backward from the start point where consumers of a value are never included, only producers.
 
+### Forward usage tracking
+
+`UsageTracker.track()` resolves the selected declaration, finds its direct
+reads and writes in the owning lexical scope and nested closures, then
+classifies each reference. Reassignments, call arguments, returns, property
+writes, spreads, and invocation are terminal `untraced-continuation` nodes;
+the tracker does not chase their ordinary data flow.
+
+An export/import boundary is the exception. `UsageTracker` uses its bounded
+reverse-import index to locate importers, adds their `import-usage` nodes, and
+scans each imported alias. A visited binding key prevents re-export cycles, and
+`maxUsageNodes` limits traversal through large import fan-out.
+
+```mermaid
+flowchart TD
+  A([UsageTracker.track]) --> B[Parse entry declaration]
+  B --> C[Resolve usage seed and lexical scope]
+  C --> D[Find direct reads and writes]
+  D --> E{Reference classification}
+
+  E -->|ordinary read or write| F[Add read-reference or write-reference]
+  E -->|continuation| G[Add untraced-continuation]
+  D -->|seed binding is exported| H[Query reverse-import index]
+  H --> I[Add export-boundary and import-usage nodes]
+  I --> J[Scan each importer alias]
+
+  F --> K([UsageResult returned])
+  G --> K
+  I --> K
+  J --> K
+```
+
+`UsageResult` is deliberately shallow for ordinary data flow: callers that
+want a broader traversal can use a `continuesAt` destination as the next
+explicit query, while sharing a `ProjectContext` to reuse parser and
+reverse-import caches across both tracker directions.
+
 ---
 
 ## 📦 API Reference
 
 ### `DependencyTracker`
 
-The only exported class. Create one instance per project configuration and reuse it across multiple `track()` calls.
+The primary exported class. Create one instance per project configuration and reuse it across multiple `track()` calls.
 
 ```ts
 const tracker = new DependencyTracker(config?: TrackerConfig);
@@ -507,10 +638,53 @@ const tracker = new DependencyTracker(config?: TrackerConfig);
 
 **`TrackerConfig`**
 
-| Field            | Type                      | Default     | Description                                                                                                                                                       |
-| ---------------- | ------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `resolver`       | `OxcResolverOptions`      | `undefined` | Options forwarded verbatim to [`oxc-resolver`](https://github.com/soranoo/oxc-resolver).                                                                          |
-| `ignorePatterns` | `Array<string \| RegExp>` | `[]`        | Paths to treat as leaf nodes. Strings are matched with `path.includes(pattern)`, RegExps with `pattern.test(path)`. `node_modules` is always implicitly included. |
+| Field                     | Type                       | Default                                  | Description                                                                                                                                                       |
+| ------------------------- | -------------------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `resolver`                | `OxcResolverOptions`       | `undefined`                              | Options forwarded verbatim to [`oxc-resolver`](https://github.com/soranoo/oxc-resolver).                                                                          |
+| `ignorePatterns`          | `Array<string \| RegExp>`  | `[]`                                     | Paths to treat as leaf nodes. Strings are matched with `path.includes(pattern)`, RegExps with `pattern.test(path)`. `node_modules` is always implicitly included. |
+| `moduleResolutionPlugins` | `ModuleResolutionPlugin[]` | `[]`                                     | Ordered handlers for non-standard module calls such as webpack's numeric module IDs. The first non-null result wins.                                              |
+| `traceCache`              | `TraceCacheOptions`        | `{ maxEntries: 128, maxBytes: 8388608 }` | Limits for computed graph retention. Either limit set to zero disables retention.                                                                                 |
+| `preprocessingCache`      | `TraceCacheOptions`        | `{ maxEntries: 128, maxBytes: 8388608 }` | Limits for file module discovery and dynamic-pattern issue reuse. Either limit set to zero disables retention.                                                    |
+
+**`tracker.getTraceCacheStats()`**
+
+Returns a detached `TraceCacheStats` snapshot containing `hits`, `bindingHits`,
+`misses`, `entries`, `bytes`, `peakEntries`, `peakBytes`, and `evictions`.
+See [statistics and eviction semantics](docs/TRACE_CACHING.md#statistics).
+
+**`tracker.getPreprocessingCacheStats()`**
+
+Returns detached per-file metadata counters: `hits`, `misses`, `entries`, `bytes`
+and `evictions`. The estimate excludes shared parsed source and AST storage.
+
+#### Module resolution plugins
+
+Bundled runtimes often express module loading as a call rather than an import,
+for example `n(9355)`. Lineage cannot infer which chunk owns that numeric ID,
+so callers can provide a plugin that maps the call to a normal module
+specifier. The resolved target is then traversed like an ordinary import.
+
+```ts
+const tracker = new DependencyTracker({
+  moduleResolutionPlugins: [
+    {
+      name: "webpack-module-ids",
+      tryResolve: ({ calleeText, args }) => {
+        if (calleeText !== "n" || typeof args[0] !== "number") return null;
+        const specifier = manifest.get(args[0]);
+        return specifier ? { specifier } : null;
+      },
+    },
+  ],
+});
+```
+
+Plugins receive `{ calleeText, args, file }`, where `args` contains only
+statically known string, number, and boolean literals. Returning `null` lets
+the next plugin try. When no plugin claims an unresolved parameter used as a
+callee, the tracker reports `unresolved-call-target` with `resolution: "leaf"`.
+Ordinary local calls still resolve normally, and call-assigned callees retain
+the existing `indirect-call` issue.
 
 **`tracker.track(request)`**
 
@@ -520,14 +694,105 @@ const result = await tracker.track(request: TrackRequest): Promise<TrackResult>
 
 **`TrackRequest`**
 
-| Field         | Type                   | Default   | Description                                                                                                                           |
-| ------------- | ---------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `entryFile`   | `string`               | required  | Absolute path to the file containing the start point.                                                                                 |
-| `startPoint`  | `OffsetRange`          | required  | 0-based character offset range of the start-point node. Use `offsetFromLineCol()` to convert from line/col.                           |
-| `output.mode` | `"blank" \| "compact"` | `"blank"` | `blank` - replaces removed code with spaces, preserving original offsets. `compact` - excises removed code, producing shorter output. |
+| Field         | Type                   | Default  | Description                                                                                                                                                                        |
+| ------------- | ---------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `entryFile`   | `string`               | required | Absolute path to the file containing the start point.                                                                                                                              |
+| `startPoint`  | `OffsetRange`          | required | 0-based character offset range of the start-point node. Use `offsetFromLineCol()` to convert from line/col.                                                                        |
+| `shake`       | `boolean`              | `true`   | When `false`, keep every statement in touched function bodies and produce no shaken nodes.                                                                                         |
+| `output.mode` | `"blank" \| "compact"` | omitted  | `blank` - replaces removed code with spaces, preserving original offsets. `compact` - excises removed code, producing shorter output. When omitted, no sliced files are assembled. |
 
 > [!IMPORTANT]\
 > `StartPointNotFoundError` is thrown if the `startPoint` offset range does not correspond to any AST node in `entryFile`.
+
+---
+
+### `UsageTracker`
+
+The forward tracker reports direct reads and writes of a declaration and follows
+resolved import and re-export boundaries. It does not chase ordinary data-flow
+continuations automatically.
+
+```ts
+import { UsageTracker } from "@soranoo/lineage";
+
+const source = "export const value = 1; console.log(value);";
+const tracker = new UsageTracker({
+  virtualFiles: { "/virtual/main.ts": source },
+});
+
+const result = tracker.track({
+  entryFile: "/virtual/main.ts",
+  startPoint: { start: 7, end: 22 },
+});
+
+console.log(result.nodes); // declaration and direct usage nodes
+console.log(result.edges); // read/import/continuation relationships
+```
+
+`UsageTrackerConfig` accepts `projectRoot` or `projectFiles` to bound a real
+project index. A `virtualFiles` map is itself the project boundary for
+virtual-only tracking. `maxUsageNodes` limits forward traversal through module
+boundaries.
+
+### `ProjectContext`
+
+Pass one `ProjectContext` to both trackers when an external traversal alternates
+between backward and forward calls. The parser cache, resolver, and lazily-built
+reverse-import graph are then shared:
+
+```ts
+import { DependencyTracker, ProjectContext, UsageTracker } from "@soranoo/lineage";
+
+const config = {
+  virtualFiles: {
+    "/virtual/main.ts": "export const value = 1; console.log(value);",
+  },
+};
+const context = new ProjectContext(config);
+const backward = new DependencyTracker(config, context);
+const forward = new UsageTracker(config, context);
+```
+
+Both trackers create a private context automatically when one is not supplied.
+
+Computed backward graphs remain in each `DependencyTracker`'s own bounded cache;
+they are not shared by `ProjectContext` or the forward tracker. See
+[computed trace caching](docs/TRACE_CACHING.md).
+
+---
+
+### `assembleSlicedOutput`
+
+Public, kind-agnostic output assembly for accumulated dependency and usage
+nodes. Use it when several independent tracker calls contribute nodes to the
+same files and the source should be edited once at the end.
+
+```ts
+import { assembleSlicedOutput } from "@soranoo/lineage";
+import type { SliceOutputNode } from "@soranoo/lineage";
+
+const nodes: SliceOutputNode[] = [...dependencyResult.nodes, ...usageResult.nodes];
+
+const files = assembleSlicedOutput(nodes, parsedFiles, "blank", shouldKeepNode);
+```
+
+**Signature**
+
+```ts
+const assembleSlicedOutput = <TNode extends SliceOutputNode>(
+  nodes: readonly TNode[],
+  parsedFiles: ReadonlyMap<AbsolutePath, ParsedFile>,
+  mode: OutputMode,
+  shouldKeepNode: (node: TNode) => boolean,
+  editor?: IEditor,
+  keepEnclosingFunctions?: boolean,
+) => Map<AbsolutePath, SlicedFile>;
+```
+
+Nodes are grouped by file before editing, so overlapping ranges from separate
+dependency and usage calls produce one merged `SlicedFile` per file. The
+caller supplies parsed files and the predicate that identifies nodes whose
+source ranges should be kept.
 
 ---
 
@@ -614,13 +879,14 @@ interface DependencyEdge {
 
 **`EdgeKind` values**
 
-| Value          | Meaning                                         |
-| -------------- | ----------------------------------------------- |
-| `"data-flow"`  | The value of `from` is read by `to`             |
-| `"call"`       | `to` calls `from`                               |
-| `"param-bind"` | An argument at a call site binds to a parameter |
-| `"closure"`    | `to` closes over the binding `from`             |
-| `"import"`     | `to` imports the binding `from`                 |
+| Value                 | Meaning                                          |
+| --------------------- | ------------------------------------------------ |
+| `"data-flow"`         | The value of `from` is read by `to`              |
+| `"call"`              | `to` calls `from`                                |
+| `"param-bind"`        | An argument at a call site binds to a parameter  |
+| `"closure"`           | `to` closes over the binding `from`              |
+| `"import"`            | `to` imports the binding `from`                  |
+| `"structural-origin"` | `to` identifies the function's structural origin |
 
 ---
 
@@ -644,18 +910,19 @@ interface TrackerIssue {
 
 **`IssueKind` values**
 
-| Value                     | Trigger                                   | Conservative action                               |
-| ------------------------- | ----------------------------------------- | ------------------------------------------------- |
-| `"unresolved-dependency"` | Binding not found in any file             | Kept as `"unresolved-leaf"`                       |
-| `"ignored-path"`          | Resolved path matched an ignore pattern   | Kept as `"ignored-leaf"`; `matchedPattern` is set |
-| `"dynamic-import"`        | `import(expr)` with non-literal specifier | Kept as leaf; no recursion                        |
-| `"computed-property"`     | `obj[expr]` - property name unknown       | Full object bindings included                     |
-| `"eval"`                  | `eval(...)` call                          | Entire enclosing scope included                   |
-| `"arguments-object"`      | Use of `arguments` inside a function      | All parameters treated as on-path                 |
-| `"rest-spread-unknown"`   | `...spread` of unknown shape              | Spread source binding included                    |
-| `"indirect-call"`         | `const f = getFn(); f()`                  | Kept as leaf; no recursion into callee            |
-| `"prototype-mutation"`    | `Foo.prototype.x = ...`                   | Flagged only - cannot trace all instances         |
-| `"this-call"`             | `this.method()` - receiver unknown        | Call included; receiver flagged                   |
+| Value                      | Trigger                                    | Conservative action                               |
+| -------------------------- | ------------------------------------------ | ------------------------------------------------- |
+| `"unresolved-dependency"`  | Binding not found in any file              | Kept as `"unresolved-leaf"`                       |
+| `"ignored-path"`           | Resolved path matched an ignore pattern    | Kept as `"ignored-leaf"`; `matchedPattern` is set |
+| `"dynamic-import"`         | `import(expr)` with non-literal specifier  | Kept as leaf; no recursion                        |
+| `"computed-property"`      | `obj[expr]` - property name unknown        | Full object bindings included                     |
+| `"eval"`                   | `eval(...)` call                           | Entire enclosing scope included                   |
+| `"arguments-object"`       | Use of `arguments` inside a function       | All parameters treated as on-path                 |
+| `"rest-spread-unknown"`    | `...spread` of unknown shape               | Spread source binding included                    |
+| `"indirect-call"`          | `const f = getFn(); f()`                   | Kept as leaf; no recursion into callee            |
+| `"prototype-mutation"`     | `Foo.prototype.x = ...`                    | Flagged only - cannot trace all instances         |
+| `"this-call"`              | `this.method()` - receiver unknown         | Call included; receiver flagged                   |
+| `"unresolved-call-target"` | Unresolved parameter used as a call callee | Kept as a leaf; no recursion                      |
 
 > [!WARNING]\
 > An issue does not mean the slice is wrong. It means the slice may be over-inclusive in that area. Always check `resolution` to understand what action was taken.

@@ -1,8 +1,6 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
-import { walkAst } from "@/helpers";
-import { OxcParser } from "@/parse";
 import type {
   AbsolutePath,
   AstNode,
@@ -12,6 +10,8 @@ import type {
   ParsedFile,
   SourceText,
 } from "@/types";
+import { walkAst } from "@/helpers";
+import { OxcParser } from "@/parse";
 
 /**
  * Source entry for multi-file parsing.

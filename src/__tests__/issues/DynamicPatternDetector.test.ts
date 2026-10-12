@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import type { AbsolutePath, IssueKind, IssueResolution, SourceText, TrackerIssue } from "@/types";
 import { IssueCollector, DynamicPatternDetector } from "@/issues";
 import { OxcParser } from "@/parse";
-import type { AbsolutePath, IssueKind, IssueResolution, SourceText, TrackerIssue } from "@/types";
 
 const file: AbsolutePath = "/project/src/dynamic.ts";
 
@@ -66,6 +66,12 @@ describe("DynamicPatternDetector", () => {
     const issues = detectIssues("const mod = import('./mod');");
 
     expectSingleIssue(issues, "dynamic-import", "included");
+  });
+
+  it("detects dynamic requires", () => {
+    const issues = detectIssues("const mod = require(moduleName);");
+
+    expectSingleIssue(issues, "dynamic-require", "included");
   });
 
   it("detects arguments object usage", () => {

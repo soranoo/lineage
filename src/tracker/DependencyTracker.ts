@@ -1,35 +1,35 @@
 import { readFileSync } from "node:fs";
 
-import { assertNever } from "assert-never";
-import MagicString from "magic-string";
-
 import { MagicStringEditor } from "@/edit";
-import { walkAst } from "@/helpers";
+import { moduleCallKey, tryResolveModuleCall, walkAst } from "@/helpers";
+import { collectSpecifiers } from "@/helpers/module-boundary";
 import { DynamicPatternDetector, IssueCollector } from "@/issues";
-import { OxcParser } from "@/parse";
-import { IgnoreFilter, OxcResolver } from "@/resolve";
-import { VirtualAwareResolver } from "@/resolve";
 import { IntraFunctionShaker } from "@/shake";
 import { BackwardSlicer } from "@/slice";
+import { FileAnalysisCache } from "@/tracker/FileAnalysisCache";
+import { ProjectContext } from "@/tracker/ProjectContext";
+import { assembleSlicedOutput, isDependencyNodeKeepWorthy } from "@/tracker/sliceOutput";
 import type {
   AbsolutePath,
-  AstNode,
-  DependencyNode,
   IEditor,
   IIssueCollector,
   IParser,
   IResolver,
   IShaker,
-  OffsetRange,
-  OutputMode,
   ParsedFile,
   SlicedFile,
   SourceText,
+  ModuleResolutionPlugin,
+  ModuleResolutionResult,
   TrackRequest,
   TrackResult,
   TrackerConfig,
+  TraceCacheStats,
+  DependencyFileAnalysis,
+  PreparedDependencyProject,
+  PreprocessingCacheStats,
 } from "@/types";
-import { InvalidVirtualPathError } from "@/types";
+import { assertNever } from "assert-never";
 
 /**
  * Optional dependency overrides for constructing a DependencyTracker.
@@ -57,244 +57,13 @@ const readSourceText = (absolutePath: AbsolutePath): SourceText =>
   readFileSync(absolutePath, "utf8");
 
 /**
- * Validate and materialize configured virtual files as a map.
- *
- * @param virtualFiles Optional virtual file record from tracker config.
- * @returns Map keyed by absolute virtual path.
- * @throws {InvalidVirtualPathError} When any key does not start with `/`.
- */
-const toVirtualFileMap = (
-  virtualFiles: Record<AbsolutePath, SourceText> | undefined,
-): Map<AbsolutePath, SourceText> => {
-  const map = new Map<AbsolutePath, SourceText>();
-
-  if (virtualFiles === undefined) {
-    return map;
-  }
-
-  for (const [filePath, source] of Object.entries(virtualFiles)) {
-    if (!filePath.startsWith("/")) {
-      throw new InvalidVirtualPathError(filePath);
-    }
-
-    map.set(filePath, source);
-  }
-
-  return map;
-};
-
-/**
- * Convert a virtual file map back into a plain record for resolver construction.
- *
- * @param virtualFiles Virtual file map keyed by absolute path.
- * @returns Virtual file record keyed by absolute path.
- */
-const toVirtualFileRecord = (
-  virtualFiles: ReadonlyMap<AbsolutePath, SourceText>,
-): Record<AbsolutePath, SourceText> => {
-  const record: Record<AbsolutePath, SourceText> = {};
-
-  for (const [filePath, source] of virtualFiles) {
-    record[filePath] = source;
-  }
-
-  return record;
-};
-
-/**
- * Parse and cache all configured virtual files before the first track call.
- *
- * @param parser Parser used to build parsed-file objects.
- * @param parsedCache Tracker-level parsed-file cache.
- * @param virtualFiles Virtual files to pre-populate.
- */
-const prepopulateVirtualParsedFiles = (
-  parser: IParser,
-  parsedCache: Map<AbsolutePath, ParsedFile>,
-  virtualFiles: ReadonlyMap<AbsolutePath, SourceText>,
-): void => {
-  for (const [filePath, source] of virtualFiles) {
-    const parsedFile = parser.parse(filePath, source);
-    parsedCache.set(filePath, parsedFile);
-  }
-};
-
-/**
  * Collect module specifiers declared at module scope for recursive parsing.
  *
  * @param parsedFile Parsed file whose top-level statements are inspected.
  * @returns Unique list of import/re-export specifiers.
  */
 const collectModuleSpecifiers = (parsedFile: ParsedFile): SourceText[] => {
-  const specifiers = new Set<SourceText>();
-
-  for (const statement of parsedFile.ast.body) {
-    switch (statement.type) {
-      case "ImportDeclaration":
-        specifiers.add(statement.source.value);
-        break;
-      case "ExportNamedDeclaration":
-        if (statement.source !== null) {
-          specifiers.add(statement.source.value);
-        }
-        break;
-      case "ExportAllDeclaration":
-        specifiers.add(statement.source.value);
-        break;
-      default:
-        break;
-    }
-  }
-
-  return [...specifiers];
-};
-
-/**
- * Build a deduplicated set of keep ranges from dependency nodes for one file.
- *
- * @param ranges Raw node ranges to keep.
- * @returns Keep-range set compatible with the editor interface.
- */
-const buildKeepRangeSet = (ranges: OffsetRange[]): Set<OffsetRange> => {
-  const byKey = new Map<SourceText, OffsetRange>();
-
-  for (const range of ranges) {
-    const key: SourceText = `${range.start}:${range.end}`;
-    byKey.set(key, range);
-  }
-
-  return new Set(byKey.values());
-};
-
-/**
- * Check whether a container node fully contains a target range.
- *
- * @param container Node that may contain the range.
- * @param range Range to test.
- * @returns True when the range is inside the container.
- */
-const containsRange = (container: AstNode, range: OffsetRange): boolean =>
-  container.start <= range.start && container.end >= range.end;
-
-/**
- * Check whether a node can define a keep-range boundary.
- *
- * @param node AST node to inspect.
- * @returns True when the node is a statement/declaration boundary.
- */
-const isKeepBoundaryNode = (node: AstNode): boolean => {
-  if (node.type.endsWith("Statement") || node.type.endsWith("Declaration")) {
-    return true;
-  }
-
-  return false;
-};
-
-/**
- * Select the smallest node span from a non-empty candidate list.
- *
- * @param candidates Candidate nodes.
- * @returns Smallest-span node.
- */
-const selectSmallestNode = (candidates: AstNode[]): AstNode => {
-  const [first, ...rest] = candidates;
-
-  if (first === undefined) {
-    throw new Error("Expected at least one AST node candidate.");
-  }
-
-  let smallest = first;
-
-  for (const node of rest) {
-    const smallestSize = smallest.end - smallest.start;
-    const nodeSize = node.end - node.start;
-
-    if (nodeSize < smallestSize) {
-      smallest = node;
-    }
-  }
-
-  return smallest;
-};
-
-/**
- * Expand a dependency-node range to its nearest statement/declaration boundary.
- *
- * @param ast AST root for the current file.
- * @param range Dependency-node range.
- * @returns Expanded statement/declaration range when found; otherwise original range.
- */
-const expandRangeToBoundary = (ast: AstNode, range: OffsetRange): OffsetRange => {
-  const boundaryMatches: AstNode[] = [];
-  const exportMatches: AstNode[] = [];
-
-  walkAst(ast, (node) => {
-    if (!isKeepBoundaryNode(node) || !containsRange(node, range)) {
-      return;
-    }
-
-    boundaryMatches.push(node);
-
-    if (
-      node.type === "ExportNamedDeclaration" ||
-      node.type === "ExportDefaultDeclaration" ||
-      node.type === "ExportAllDeclaration"
-    ) {
-      exportMatches.push(node);
-    }
-  });
-
-  if (exportMatches.length > 0) {
-    const selectedExport = selectSmallestNode(exportMatches);
-    return { start: selectedExport.start, end: selectedExport.end };
-  }
-
-  if (boundaryMatches.length === 0) {
-    return { start: range.start, end: range.end };
-  }
-
-  const selectedBoundary = selectSmallestNode(boundaryMatches);
-  return { start: selectedBoundary.start, end: selectedBoundary.end };
-};
-
-/**
- * Determine whether a dependency node should contribute to output keep ranges.
- *
- * @param node Dependency node to evaluate.
- * @returns True when the node should preserve output text.
- */
-const shouldKeepNodeForOutput = (node: DependencyNode): boolean => {
-  switch (node.kind) {
-    case "parameter":
-      return false;
-    case "start-point":
-    case "variable":
-    case "function":
-    case "call-site":
-    case "import":
-    case "global":
-    case "re-export":
-    case "ignored-leaf":
-    case "unresolved-leaf":
-      return true;
-    default:
-      return assertNever(node.kind);
-  }
-};
-
-/**
- * Convert dependency nodes into output keep ranges.
- *
- * @param nodes Dependency nodes from one file.
- * @param parsedFile Parsed file of the current source file.
- * @returns Keep ranges used by the editor.
- */
-const toOutputKeepRanges = (nodes: DependencyNode[], parsedFile: ParsedFile): Set<OffsetRange> => {
-  const ranges = nodes
-    .filter((node) => node.shaken === false && shouldKeepNodeForOutput(node))
-    .map((node) => expandRangeToBoundary(parsedFile.ast, node.range));
-
-  return buildKeepRangeSet(ranges);
+  return collectSpecifiers(parsedFile.ast);
 };
 
 /**
@@ -310,34 +79,65 @@ export class DependencyTracker {
   private readonly dynamicPatternDetector: DynamicPatternDetector;
   private readonly editor: IEditor;
   private readonly slicer: BackwardSlicer;
+  private readonly moduleResolutionPlugins: readonly ModuleResolutionPlugin[];
+  private readonly moduleResolutionCache: Map<SourceText, ModuleResolutionResult>;
+  private readonly preprocessingCache: FileAnalysisCache;
+  private readonly patternIssues = new IssueCollector();
 
   /**
    * Create a dependency tracker with default implementations or injected fakes.
    *
    * @param config Tracker configuration for resolver and ignore behavior.
-   * @param dependencies Optional dependency overrides used by tests.
+   * @param dependenciesOrContext Dependency overrides or a shared project context.
+   * @param context Shared project context used by this tracker.
    */
-  constructor(config: TrackerConfig = {}, dependencies: DependencyTrackerDependencies = {}) {
-    const ignoreFilter = new IgnoreFilter(config.ignorePatterns ?? []);
-    const virtualFiles = toVirtualFileMap(config.virtualFiles);
-    const oxcResolver = new OxcResolver(ignoreFilter, config.resolver);
-    const defaultResolver: IResolver =
-      virtualFiles.size > 0
-        ? new VirtualAwareResolver(toVirtualFileRecord(virtualFiles), ignoreFilter, oxcResolver)
-        : oxcResolver;
+  constructor(
+    config: TrackerConfig = {},
+    dependenciesOrContext: DependencyTrackerDependencies | ProjectContext = {},
+    context?: ProjectContext,
+  ) {
+    const dependencies =
+      dependenciesOrContext instanceof ProjectContext ? {} : dependenciesOrContext;
+    const sharedContext =
+      context ??
+      (dependenciesOrContext instanceof ProjectContext
+        ? dependenciesOrContext
+        : new ProjectContext(config, dependencies.parser, dependencies.resolver));
 
+    this.parser = sharedContext.getParser();
+    this.resolver = sharedContext.getResolver();
     this.parsedCache = new Map<AbsolutePath, ParsedFile>();
-    this.virtualFiles = virtualFiles;
-    this.parser = dependencies.parser ?? new OxcParser();
-    this.resolver = dependencies.resolver ?? defaultResolver;
+    this.virtualFiles = sharedContext.getVirtualFiles();
     this.shaker = dependencies.shaker ?? new IntraFunctionShaker();
     this.issueCollector = dependencies.issueCollector ?? new IssueCollector();
-    this.dynamicPatternDetector = new DynamicPatternDetector(this.issueCollector);
+    this.dynamicPatternDetector = new DynamicPatternDetector(this.patternIssues);
+    this.preprocessingCache = new FileAnalysisCache(config.preprocessingCache);
     this.editor = dependencies.editor ?? new MagicStringEditor();
-    this.slicer = new BackwardSlicer(this.parser, this.resolver, this.shaker, this.issueCollector);
-
-    prepopulateVirtualParsedFiles(this.parser, this.parsedCache, this.virtualFiles);
+    this.moduleResolutionPlugins = config.moduleResolutionPlugins ?? [];
+    this.moduleResolutionCache = new Map<SourceText, ModuleResolutionResult>();
+    this.slicer = new BackwardSlicer(
+      this.parser,
+      this.resolver,
+      this.shaker,
+      this.issueCollector,
+      this.moduleResolutionPlugins,
+      this.moduleResolutionCache,
+      config.traceCache,
+    );
   }
+
+  /**
+   * Inspect computed dependency graph reuse and estimated retained memory.
+   * @returns Counters scoped to this tracker and its immutable project context.
+   */
+  readonly getTraceCacheStats = (): TraceCacheStats => this.slicer.getTraceCacheStats();
+
+  /**
+   * Inspect module-discovery and file-wide issue reuse.
+   * @returns File analysis cache counters for this tracker.
+   */
+  readonly getPreprocessingCacheStats = (): PreprocessingCacheStats =>
+    this.preprocessingCache.stats();
 
   /**
    * Execute the dependency tracking pipeline for the provided request.
@@ -348,11 +148,28 @@ export class DependencyTracker {
   readonly track = async (request: TrackRequest): Promise<TrackResult> => {
     this.issueCollector.clear();
 
-    const parsedFiles = await this.collectParsedFiles(request.entryFile);
-    this.detectDynamicPatterns(parsedFiles);
-    const sliceResult = this.slicer.slice(request.entryFile, request.startPoint, parsedFiles);
-    const mode = this.resolveOutputMode(request);
-    const files = this.buildSlicedFiles(sliceResult.nodes, parsedFiles, mode);
+    const prepared = this.collectParsedFiles(request.entryFile);
+    const parsedFiles = prepared.files;
+    for (const issue of prepared.issues) {
+      this.issueCollector.add(issue);
+    }
+    const sliceResult = this.slicer.slice(
+      request.entryFile,
+      request.startPoint,
+      parsedFiles,
+      request.shake !== false,
+    );
+    const files =
+      request.output === undefined
+        ? new Map<AbsolutePath, SlicedFile>()
+        : assembleSlicedOutput(
+            sliceResult.nodes,
+            parsedFiles,
+            request.output.mode ?? "blank",
+            isDependencyNodeKeepWorthy,
+            this.editor,
+            request.shake === false,
+          );
 
     return {
       files,
@@ -363,40 +180,18 @@ export class DependencyTracker {
   };
 
   /**
-   * Resolve the effective output mode for a tracking request.
-   *
-   * @param request Track request whose output mode is inspected.
-   * @returns Explicit request mode when present, otherwise blank mode.
-   */
-  private readonly resolveOutputMode = (request: TrackRequest): OutputMode => {
-    const mode = request.output?.mode;
-
-    switch (mode) {
-      case undefined:
-        return "blank";
-      case "blank":
-        return "blank";
-      case "compact":
-        return "compact";
-      default:
-        return assertNever(mode);
-    }
-  };
-
-  /**
    * Parse entry and recursively resolved module files into one map.
    *
    * @param entryFile Absolute path of the entry file to parse.
-   * @returns Parsed-file map keyed by absolute path.
+   * @returns Parsed-file closure and independent file-wide issues in discovery order.
    */
-  private readonly collectParsedFiles = (
-    entryFile: AbsolutePath,
-  ): Map<AbsolutePath, ParsedFile> => {
+  private readonly collectParsedFiles = (entryFile: AbsolutePath): PreparedDependencyProject => {
     const parsedFiles = new Map<AbsolutePath, ParsedFile>();
+    const issues: PreparedDependencyProject["issues"] = [];
     const queue: AbsolutePath[] = [entryFile];
-
-    while (queue.length > 0) {
-      const nextFile = queue.shift();
+    // Cursor traversal avoids shifting the remaining queue for every discovered file.
+    for (let cursor = 0; cursor < queue.length; cursor++) {
+      const nextFile = queue[cursor];
 
       if (nextFile === undefined) {
         continue;
@@ -414,85 +209,83 @@ export class DependencyTracker {
       this.parsedCache.set(nextFile, parsedFile);
       parsedFiles.set(nextFile, parsedFile);
 
-      const specifiers = collectModuleSpecifiers(parsedFile);
-      for (const specifier of specifiers) {
-        const resolution = this.resolver.resolve(specifier, nextFile);
-
-        switch (resolution.kind) {
-          case "resolved":
-            if (!parsedFiles.has(resolution.absolutePath)) {
-              queue.push(resolution.absolutePath);
-            }
-            break;
-          case "ignored":
-            break;
-          case "failed":
-            break;
-          default:
-            assertNever(resolution);
+      const analysis = this.analyzeFile(parsedFile);
+      issues.push(...structuredClone(analysis.issues));
+      for (const [key, result] of analysis.moduleCalls) {
+        this.moduleResolutionCache.set(key, result);
+      }
+      for (const dependency of analysis.dependencies) {
+        if (!parsedFiles.has(dependency)) {
+          queue.push(dependency);
         }
       }
     }
-
-    return parsedFiles;
+    return { files: parsedFiles, issues };
   };
 
   /**
-   * Build edited file outputs for files that contributed dependency nodes.
-   *
-   * @param nodes Dependency nodes produced by slicing.
-   * @param parsedFiles Parsed files available for source lookups.
-   * @param mode Output mode for edit behavior.
-   * @returns Map of sliced files keyed by absolute path.
+   * Discover module boundaries and file-wide issues once per retained parsed source.
+   * @param parsedFile Immutable parsed source.
+   * @returns Completed source-derived metadata, including failed plugin decisions.
    */
-  private readonly buildSlicedFiles = (
-    nodes: DependencyNode[],
-    parsedFiles: Map<AbsolutePath, ParsedFile>,
-    mode: OutputMode,
-  ): Map<AbsolutePath, SlicedFile> => {
-    const files = new Map<AbsolutePath, SlicedFile>();
-    const nodesByFile = new Map<AbsolutePath, DependencyNode[]>();
+  private readonly analyzeFile = (parsedFile: ParsedFile): DependencyFileAnalysis => {
+    const cached = this.preprocessingCache.read(parsedFile);
+    if (cached) {
+      return cached;
+    }
+    const nextFile = parsedFile.absolutePath;
+    const dependencies = new Set<AbsolutePath>();
+    const moduleCalls: DependencyFileAnalysis["moduleCalls"] = [];
+    const specifiers = collectModuleSpecifiers(parsedFile);
+    for (const specifier of specifiers) {
+      const resolution = this.resolver.resolve(specifier, nextFile);
 
-    for (const node of nodes) {
-      const existing = nodesByFile.get(node.file);
+      switch (resolution.kind) {
+        case "resolved":
+          dependencies.add(resolution.absolutePath);
+          break;
+        case "ignored":
+          break;
+        case "failed":
+          break;
+        default:
+          assertNever(resolution);
+      }
+    }
 
-      if (existing === undefined) {
-        nodesByFile.set(node.file, [node]);
-        continue;
+    walkAst(parsedFile.ast, (node) => {
+      if (node.type !== "CallExpression") {
+        return;
       }
 
-      existing.push(node);
-    }
+      const cacheKey = moduleCallKey(nextFile, node);
+      const pluginResult = tryResolveModuleCall(
+        node,
+        parsedFile.source,
+        nextFile,
+        this.moduleResolutionPlugins,
+      );
+      moduleCalls.push([cacheKey, pluginResult]);
 
-    for (const [file, fileNodes] of nodesByFile) {
-      const parsedFile = parsedFiles.get(file);
-
-      if (parsedFile === undefined) {
-        continue;
+      if (pluginResult === null) {
+        return;
       }
 
-      const keepRanges = toOutputKeepRanges(fileNodes, parsedFile);
-      const ms = new MagicString(parsedFile.source);
-      this.editor.apply(ms, parsedFile.source, keepRanges, mode);
-
-      files.set(file, {
-        path: file,
-        ms,
-        originalSource: parsedFile.source,
-      });
-    }
-
-    return files;
-  };
-
-  /**
-   * Detect dynamic-pattern issues for all parsed files in the current request.
-   *
-   * @param parsedFiles Parsed files to scan for dynamic patterns.
-   */
-  private readonly detectDynamicPatterns = (parsedFiles: Map<AbsolutePath, ParsedFile>): void => {
-    for (const parsedFile of parsedFiles.values()) {
-      this.dynamicPatternDetector.detect(parsedFile.ast, parsedFile.absolutePath);
-    }
+      const resolution = this.resolver.resolve(pluginResult.specifier, nextFile);
+      if (resolution.kind === "resolved") {
+        dependencies.add(resolution.absolutePath);
+      }
+    });
+    this.patternIssues.clear();
+    this.dynamicPatternDetector.detect(parsedFile.ast, parsedFile.absolutePath, parsedFile);
+    const analysis: DependencyFileAnalysis = {
+      source: parsedFile.source,
+      ast: parsedFile.ast,
+      dependencies: [...dependencies],
+      moduleCalls,
+      issues: this.patternIssues.getAll(),
+    };
+    this.preprocessingCache.write(nextFile, analysis);
+    return analysis;
   };
 }

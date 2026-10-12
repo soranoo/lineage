@@ -1,25 +1,7 @@
+import { isAstNode, walkAst } from "@/helpers";
+import { buildScopes } from "@/helpers/scope";
+import type { AstNode, LiteralValue, ParsedFile, Scope, ScopeKind, SourceText } from "@/types";
 import assertNever from "assert-never";
-import { visitorKeys } from "oxc-parser";
-
-import { isAstNode } from "@/helpers";
-import type { AstNode, ParsedFile, SourceText } from "@/types";
-
-/**
- * Scope classification used during binding lookup.
- */
-type ScopeKind = "program" | "function" | "block";
-
-/**
- * Scope container with collected bindings.
- */
-type Scope = {
-  /** AST node that owns the scope. */
-  node: AstNode;
-  /** Scope classification. */
-  kind: ScopeKind;
-  /** Binding map keyed by identifier name. */
-  bindings: Map<SourceText, AstNode>;
-};
 
 /**
  * Function-like nodes that introduce function scopes.
@@ -27,6 +9,7 @@ type Scope = {
 type FunctionScopeNode = Extract<
   AstNode,
   {
+    /** AST node kinds that introduce their own function scope. */
     type:
       | "FunctionDeclaration"
       | "FunctionExpression"
@@ -35,36 +18,6 @@ type FunctionScopeNode = Extract<
       | "TSEmptyBodyFunctionExpression";
   }
 >;
-
-/**
- * Program root node type.
- */
-type ProgramNode = Extract<AstNode, { type: "Program" }>;
-
-/**
- * Binding lookup result including the owning scope.
- */
-type ResolvedBinding = {
-  /** AST node that defines the binding. */
-  node: AstNode;
-  /** Scope kind where the binding was declared. */
-  scopeKind: ScopeKind;
-  /** Scope node that owns the binding. */
-  scopeNode: AstNode;
-};
-
-/**
- * Create a new scope record.
- *
- * @param node AST node that owns the scope.
- * @param kind Scope classification for the node.
- * @returns Initialized scope record.
- */
-const createScope = (node: AstNode, kind: ScopeKind): Scope => ({
-  node,
-  kind,
-  bindings: new Map<SourceText, AstNode>(),
-});
 
 /**
  * Check whether a node represents a function-like scope.
@@ -80,189 +33,15 @@ const isFunctionScopeNode = (node: AstNode): node is FunctionScopeNode =>
   node.type === "TSEmptyBodyFunctionExpression";
 
 /**
- * Check whether a node represents a block scope.
- *
- * @param node AST node to inspect.
- * @returns True when the node defines a block scope.
+ * Binding lookup result including the owning scope.
  */
-const isBlockScopeNode = (node: AstNode): boolean => node.type === "BlockStatement";
-
-/**
- * Check whether a node is the program root.
- *
- * @param node AST node to inspect.
- * @returns True when the node is the program root.
- */
-const isProgramNode = (node: AstNode): node is ProgramNode => node.type === "Program";
-
-/**
- * Find the nearest non-block scope in a scope stack.
- *
- * @param scopeStack Active scope stack.
- * @returns Nearest function or program scope.
- */
-const findNearestNonBlockScope = (scopeStack: Scope[]): Scope => {
-  for (let index = scopeStack.length - 1; index >= 0; index -= 1) {
-    const scope = scopeStack[index];
-    if (scope && scope.kind !== "block") {
-      return scope;
-    }
-  }
-
-  const fallback = scopeStack[0];
-
-  if (!fallback) {
-    throw new Error("Scope stack is empty.");
-  }
-
-  return fallback;
-};
-
-/**
- * Register bindings declared by the current node into the scope stack.
- *
- * @param node AST node that may declare bindings.
- * @param scopeStack Active scope stack.
- */
-const registerBindings = (node: AstNode, scopeStack: Scope[]): void => {
-  const currentScope = scopeStack[scopeStack.length - 1];
-
-  if (!currentScope) {
-    return;
-  }
-
-  switch (node.type) {
-    case "VariableDeclaration": {
-      const targetScope = node.kind === "var" ? findNearestNonBlockScope(scopeStack) : currentScope;
-
-      for (const declarator of node.declarations) {
-        if (declarator.id.type !== "Identifier") {
-          continue;
-        }
-
-        targetScope.bindings.set(declarator.id.name, declarator);
-      }
-      return;
-    }
-    case "FunctionDeclaration":
-      if (node.id !== null) {
-        currentScope.bindings.set(node.id.name, node);
-      }
-      return;
-    case "ClassDeclaration":
-      if (node.id !== null) {
-        currentScope.bindings.set(node.id.name, node);
-      }
-      return;
-    case "ImportDeclaration": {
-      const programScope = scopeStack.find((scope) => scope.kind === "program") ?? currentScope;
-
-      for (const specifier of node.specifiers) {
-        switch (specifier.type) {
-          case "ImportSpecifier":
-          case "ImportDefaultSpecifier":
-          case "ImportNamespaceSpecifier":
-            programScope.bindings.set(specifier.local.name, node);
-            break;
-          default:
-            assertNever(specifier);
-        }
-      }
-      return;
-    }
-    default:
-      return;
-  }
-};
-
-/**
- * Register function parameters into a scope.
- *
- * @param node Function AST node.
- * @param scope Scope to populate with parameter bindings.
- */
-const registerFunctionParams = (node: AstNode, scope: Scope): void => {
-  if (!isFunctionScopeNode(node)) {
-    return;
-  }
-
-  for (const param of node.params) {
-    if (param.type !== "Identifier") {
-      continue;
-    }
-
-    scope.bindings.set(param.name, param);
-  }
-};
-
-/**
- * Build a list of scopes with bindings for the provided AST.
- *
- * @param root Program AST to analyze.
- * @returns Collected scopes with declared bindings.
- */
-const buildScopes = (root: AstNode): Scope[] => {
-  const scopes: Scope[] = [];
-
-  if (!isProgramNode(root)) {
-    return scopes;
-  }
-
-  const programScope = createScope(root, "program");
-  scopes.push(programScope);
-
-  const traverse = (node: AstNode, scopeStack: Scope[]): void => {
-    registerBindings(node, scopeStack);
-
-    let nextScope: Scope | null = null;
-
-    if (isFunctionScopeNode(node)) {
-      nextScope = createScope(node, "function");
-      registerFunctionParams(node, nextScope);
-    } else if (isBlockScopeNode(node)) {
-      nextScope = createScope(node, "block");
-    }
-
-    if (nextScope) {
-      scopeStack.push(nextScope);
-      scopes.push(nextScope);
-    }
-
-    const keys = visitorKeys[node.type];
-
-    if (keys) {
-      for (const key of keys) {
-        if (key === "parent") {
-          continue;
-        }
-
-        const value = Reflect.get(node, key);
-
-        if (Array.isArray(value)) {
-          for (const entry of value) {
-            if (isAstNode(entry)) {
-              traverse(entry, scopeStack);
-            }
-          }
-          continue;
-        }
-
-        if (isAstNode(value)) {
-          traverse(value, scopeStack);
-        }
-      }
-    }
-
-    if (nextScope) {
-      scopeStack.pop();
-    }
-  };
-
-  for (const statement of root.body) {
-    traverse(statement, [programScope]);
-  }
-
-  return scopes;
+type ResolvedBinding = {
+  /** AST node that defines the binding. */
+  node: AstNode;
+  /** Scope kind where the binding was declared. */
+  scopeKind: ScopeKind;
+  /** Scope node that owns the binding. */
+  scopeNode: AstNode;
 };
 
 /**
@@ -290,9 +69,173 @@ const sortScopesBySize = (scopes: Scope[]): Scope[] =>
   });
 
 /**
+ * Convert a statically known literal into a member-property name.
+ *
+ * @param value Literal value to convert.
+ * @returns Property name representation.
+ */
+const toPropertyName = (value: LiteralValue): SourceText => String(value);
+
+/**
  * Resolves a name to a declaration node within a scope chain.
  */
 export class BindingResolver {
+  /**
+   * Resolve statically known keys for a computed member expression.
+   *
+   * @param memberNode Member expression to inspect.
+   * @param scopeNode AST node providing the lookup scope.
+   * @param parsedFile Parsed file containing the expression.
+   * @returns Unique property names known from literals, locals, or call sites.
+   */
+  readonly resolveStaticPropertyKeys = (
+    memberNode: AstNode,
+    scopeNode: AstNode,
+    parsedFile: ParsedFile,
+  ): SourceText[] => {
+    if (memberNode.type !== "MemberExpression" || !memberNode.computed) {
+      return [];
+    }
+
+    const values = this.resolveStaticValues(memberNode.property, scopeNode, parsedFile, new Set());
+    return [...new Set(values.map(toPropertyName))];
+  };
+
+  /**
+   * Resolve every statically known primitive value for an expression.
+   *
+   * @param expression Expression whose value should be inspected.
+   * @param scopeNode AST node providing the lookup scope.
+   * @param parsedFile Parsed file containing the expression.
+   * @param resolving Nodes currently being evaluated, used to break cycles.
+   * @returns Literal values known without evaluating arbitrary code.
+   */
+  private readonly resolveStaticValues = (
+    expression: AstNode,
+    scopeNode: AstNode,
+    parsedFile: ParsedFile,
+    resolving: Set<AstNode>,
+  ): LiteralValue[] => {
+    switch (expression.type) {
+      case "Literal": {
+        switch (typeof expression.value) {
+          case "string":
+          case "number":
+          case "boolean": {
+            return [expression.value];
+          }
+          case "bigint":
+          case "function":
+          case "object":
+          case "symbol":
+          case "undefined":
+            break;
+          default:
+            assertNever(expression.value);
+        }
+
+        return [];
+      }
+      case "TemplateLiteral": {
+        if (expression.expressions.length !== 0) {
+          return [];
+        }
+
+        const [quasi] = expression.quasis;
+        const cooked = quasi?.value.cooked;
+        return cooked === null || cooked === undefined ? [] : [cooked];
+      }
+      case "TSAsExpression":
+        return this.resolveStaticValues(expression.expression, scopeNode, parsedFile, resolving);
+      case "Identifier": {
+        const resolved = this.resolveWithScope(expression.name, scopeNode, parsedFile);
+
+        if (!resolved || resolving.has(resolved.node)) {
+          return [];
+        }
+
+        resolving.add(resolved.node);
+
+        try {
+          if (resolved.node.type === "VariableDeclarator" && resolved.node.init) {
+            return this.resolveStaticValues(
+              resolved.node.init,
+              resolved.scopeNode,
+              parsedFile,
+              resolving,
+            );
+          }
+
+          if (resolved.node.type === "Identifier" && isFunctionScopeNode(resolved.scopeNode)) {
+            return this.resolveParameterValues(
+              resolved.node,
+              resolved.scopeNode,
+              parsedFile,
+              resolving,
+            );
+          }
+
+          return [];
+        } finally {
+          resolving.delete(resolved.node);
+        }
+      }
+      default:
+        return [];
+    }
+  };
+
+  /**
+   * Resolve literal arguments supplied to every call of a named function.
+   *
+   * @param parameterNode Parameter whose arguments should be collected.
+   * @param functionNode Function owning the parameter.
+   * @param parsedFile Parsed file containing declarations and calls.
+   * @param resolving Active resolution set used to stop cycles.
+   * @returns Literal values supplied at matching call sites.
+   */
+  private readonly resolveParameterValues = (
+    parameterNode: AstNode,
+    functionNode: FunctionScopeNode,
+    parsedFile: ParsedFile,
+    resolving: Set<AstNode>,
+  ): LiteralValue[] => {
+    const parameterIndex = functionNode.params.findIndex(
+      (parameter) => parameter === parameterNode,
+    );
+    const functionName = functionNode.id?.type === "Identifier" ? functionNode.id.name : null;
+
+    if (parameterIndex < 0 || functionName === null) {
+      return [];
+    }
+
+    const values: LiteralValue[] = [];
+
+    walkAst(parsedFile.ast, (node) => {
+      if (node.type !== "CallExpression" || node.callee.type !== "Identifier") {
+        return;
+      }
+
+      if (node.callee.name !== functionName) {
+        return;
+      }
+
+      const resolvedCallee = this.resolveWithScope(node.callee.name, node.callee, parsedFile);
+      if (resolvedCallee?.node !== functionNode) {
+        return;
+      }
+
+      const argument = node.arguments[parameterIndex];
+      if (!argument || !isAstNode(argument)) {
+        return;
+      }
+
+      values.push(...this.resolveStaticValues(argument, functionNode, parsedFile, resolving));
+    });
+
+    return values;
+  };
+
   /**
    * Resolve `name` to its declaration node and scope kind.
    *

@@ -2,9 +2,6 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import MagicString from "magic-string";
-import { describe, expect, it } from "vitest";
-
 import { FakeParser } from "@/__tests__/_fakes/FakeParser";
 import { FakeResolver } from "@/__tests__/_fakes/FakeResolver";
 import { FakeShaker } from "@/__tests__/_fakes/FakeShaker";
@@ -31,6 +28,8 @@ import { StartPointNotFoundError } from "@/types";
 import { InvalidVirtualPathError } from "@/types";
 import { CyclicResolutionError as CyclicResolutionErrorClass } from "@/types";
 import { ParseError as ParseErrorClass } from "@/types";
+import MagicString from "magic-string";
+import { describe, expect, it } from "vitest";
 
 /**
  * Runtime shape expected from a tracker instance.
@@ -155,6 +154,8 @@ class ThrowingCycleResolver implements IResolver {
    *
    * @returns This method never returns.
    * @throws {CyclicResolutionError} Always.
+   * @param _specifier Module specifier ignored by this test resolver.
+   * @param _fromFile Importing file ignored by this test resolver.
    */
   readonly resolve = (_specifier: SourceText, _fromFile: AbsolutePath): ResolveResult => {
     throw new CyclicResolutionErrorClass(this.cycle);
@@ -594,7 +595,10 @@ describe("DependencyTracker", () => {
       };
       const tracker = await createTracker({});
 
-      const result = await tracker.track({ entryFile, startPoint });
+      const result = await tracker.track({
+        entryFile,
+        startPoint,
+      });
 
       expect(result.nodes.some((node) => node.kind === "start-point")).toBe(true);
       expect(
@@ -627,7 +631,10 @@ describe("DependencyTracker", () => {
       };
       const tracker = await createTracker({});
 
-      const result = await tracker.track({ entryFile, startPoint });
+      const result = await tracker.track({
+        entryFile,
+        startPoint,
+      });
 
       expect(result.nodes.some((node) => node.kind === "start-point")).toBe(true);
       expect(
@@ -854,7 +861,11 @@ describe("DependencyTracker", () => {
       };
       const tracker = await createTracker({});
 
-      const result = await tracker.track({ entryFile, startPoint });
+      const result = await tracker.track({
+        entryFile,
+        startPoint,
+        output: { mode: "blank" },
+      });
       const startNode = result.nodes.find((node) => node.kind === "start-point");
 
       expect(startNode).toBeDefined();

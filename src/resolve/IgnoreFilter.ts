@@ -1,11 +1,22 @@
-import { assertNever } from "assert-never";
-
 import type { AbsolutePath, IgnorePattern } from "@/types";
+import { assertNever } from "assert-never";
 
 /**
  * Compiled ignore pattern representation.
  */
-type CompiledPattern = { kind: "string"; value: string } | { kind: "regexp"; value: RegExp };
+type CompiledPattern =
+  | {
+      /** Select substring matching for this pattern. */
+      kind: "string";
+      /** Path substring to match. */
+      value: string;
+    }
+  | {
+      /** Select regular expression matching for this pattern. */
+      kind: "regexp";
+      /** Regular expression tested against resolved paths. */
+      value: RegExp;
+    };
 
 /**
  * Compiles and tests ignore patterns against resolved absolute file paths.

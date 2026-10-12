@@ -1,3 +1,4 @@
+import { describe, expect, it } from "vitest";
 import type {
   AssignmentExpression,
   CallExpression,
@@ -5,10 +6,10 @@ import type {
   ReturnStatement,
   VariableDeclaration,
 } from "@oxc-project/types";
-import { describe, expect, it } from "vitest";
 
 import { findNode, parseSource, toRange } from "@/__tests__/utils";
 import { SeedExpander } from "@/slice";
+
 import type { AstNode, SourceText } from "@/types";
 
 /**

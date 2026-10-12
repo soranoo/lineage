@@ -1,6 +1,5 @@
-import type { AssignmentExpression, CallExpression } from "@oxc-project/types";
-
 import { walkAst } from "@/helpers";
+import { BindingResolver } from "@/slice/BindingResolver";
 import type {
   AbsolutePath,
   AstNode,
@@ -10,14 +9,17 @@ import type {
   IssueMessage,
   IssueResolution,
   OffsetRange,
+  ParsedFile,
   SourceText,
 } from "@/types";
+import type { AssignmentExpression, CallExpression } from "@oxc-project/types";
 
 /**
  * Detects dynamic patterns that require conservative handling.
  */
 export class DynamicPatternDetector {
   private readonly collector: IIssueCollector;
+  private readonly bindingResolver: BindingResolver;
 
   private readonly issueMessages: Record<IssueKind, IssueMessage> = {
     "unresolved-dependency": "Unresolved dependency.",
@@ -30,6 +32,9 @@ export class DynamicPatternDetector {
     "indirect-call": "Indirect call detected.",
     "prototype-mutation": "Prototype mutation detected.",
     "this-call": "this-call detected.",
+    "dynamic-require": "Dynamic require detected.",
+    "usage-cap-reached": "Usage node cap reached.",
+    "unresolved-call-target": "Unresolved call target.",
   };
 
   private readonly issueResolutions: Record<IssueKind, IssueResolution> = {
@@ -43,6 +48,9 @@ export class DynamicPatternDetector {
     "indirect-call": "included",
     "prototype-mutation": "flagged-only",
     "this-call": "included",
+    "dynamic-require": "included",
+    "usage-cap-reached": "flagged-only",
+    "unresolved-call-target": "leaf",
   };
 
   /**
@@ -52,6 +60,7 @@ export class DynamicPatternDetector {
    */
   constructor(collector: IIssueCollector) {
     this.collector = collector;
+    this.bindingResolver = new BindingResolver();
   }
 
   /**
@@ -59,9 +68,11 @@ export class DynamicPatternDetector {
    *
    * @param node Root AST node to scan.
    * @param file Absolute path of the file being analyzed.
+   * @param parsedFile Parsed file used to resolve computed keys when available.
    */
-  readonly detect = (node: AstNode, file: AbsolutePath): void => {
+  readonly detect = (node: AstNode, file: AbsolutePath, parsedFile?: ParsedFile): void => {
     const indirectBindings = new Set<SourceText>();
+    const staticComputedCallees = new Set<AstNode>();
 
     walkAst(node, (current) => {
       switch (current.type) {
@@ -92,6 +103,14 @@ export class DynamicPatternDetector {
           return;
         }
         case "CallExpression": {
+          if (
+            current.callee.type === "MemberExpression" &&
+            current.callee.computed &&
+            this.hasStaticPropertyKey(current.callee, parsedFile)
+          ) {
+            staticComputedCallees.add(current.callee);
+          }
+
           if (this.isEvalCall(current)) {
             this.emitIssue("eval", current, file);
           }
@@ -100,13 +119,17 @@ export class DynamicPatternDetector {
             this.emitIssue("this-call", current, file);
           }
 
+          if (this.isDynamicRequire(current)) {
+            this.emitIssue("dynamic-require", current, file);
+          }
+
           if (this.isIndirectCall(current, indirectBindings)) {
             this.emitIssue("indirect-call", current, file);
           }
           return;
         }
         case "MemberExpression": {
-          if (current.computed) {
+          if (current.computed && !staticComputedCallees.has(current)) {
             this.emitIssue("computed-property", current, file);
           }
           return;
@@ -132,15 +155,58 @@ export class DynamicPatternDetector {
   };
 
   /**
+   * Check whether a computed member has a statically known property key.
+   *
+   * @param node Computed member expression to inspect.
+   * @param parsedFile Parsed file used for binding resolution.
+   * @returns True when the key is known without evaluating arbitrary code.
+   */
+  private readonly hasStaticPropertyKey = (
+    node: Extract<
+      AstNode,
+      {
+        /** AST discriminant for a member expression. */
+        type: "MemberExpression";
+      }
+    >,
+    parsedFile: ParsedFile | undefined,
+  ): boolean => {
+    if (node.property.type === "Literal") {
+      return (
+        typeof node.property.value === "string" ||
+        typeof node.property.value === "number" ||
+        typeof node.property.value === "boolean"
+      );
+    }
+
+    if (node.property.type === "TemplateLiteral" && node.property.expressions.length === 0) {
+      const [quasi] = node.property.quasis;
+      return quasi?.value.cooked !== null && quasi?.value.cooked !== undefined;
+    }
+
+    return (
+      parsedFile !== undefined &&
+      this.bindingResolver.resolveStaticPropertyKeys(node, node, parsedFile).length > 0
+    );
+  };
+
+  /**
    * Add a single issue to the collector with resolved metadata.
    *
    * @param kind Issue kind to emit.
    * @param node AST node providing the issue span.
+   * @param node.start Start offset of the issue node.
+   * @param node.end End offset of the issue node.
    * @param file Absolute path of the file containing the issue.
    */
   private readonly emitIssue = (
     kind: IssueKind,
-    node: { start: CharOffset; end: CharOffset },
+    node: {
+      /** Inclusive start offset of the issue. */
+      start: CharOffset;
+      /** Exclusive end offset of the issue. */
+      end: CharOffset;
+    },
     file: AbsolutePath,
   ): void => {
     const range: OffsetRange = { start: node.start, end: node.end };
@@ -173,6 +239,23 @@ export class DynamicPatternDetector {
    */
   private readonly isThisCall = (node: CallExpression): boolean =>
     node.callee.type === "MemberExpression" && node.callee.object.type === "ThisExpression";
+
+  /**
+   * Check whether the call is a require with a non-literal module target.
+   *
+   * @param node Call expression to inspect.
+   * @returns True when require cannot be resolved from a string literal.
+   */
+  private readonly isDynamicRequire = (node: CallExpression): boolean => {
+    if (node.callee.type !== "Identifier" || node.callee.name !== "require") {
+      return false;
+    }
+
+    const [argument] = node.arguments;
+    return (
+      argument === undefined || argument.type !== "Literal" || typeof argument.value !== "string"
+    );
+  };
 
   /**
    * Check whether the call expression is an indirect call via a bound identifier.

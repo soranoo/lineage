@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { IgnoreFilter } from "@/resolve";
 import type { AbsolutePath } from "@/types";
+import { IgnoreFilter } from "@/resolve";
 
 /**
  * RegExp that counts invocations for test assertions.

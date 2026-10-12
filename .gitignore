@@ -1,7 +1,9 @@
 tmp-docs/
 CLAUDE.md
+AGENTS.md
 copilot-instructions.md
 ISSUES_REPORTED.md
+.codex/
 
 # dependencies (bun install)
 node_modules

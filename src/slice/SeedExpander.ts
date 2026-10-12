@@ -1,7 +1,7 @@
 import { assertNever } from "assert-never";
 
-import { walkAst } from "@/helpers";
 import type { AstNode, OffsetRange, SeedNode, SourceText } from "@/types";
+import { walkAst } from "@/helpers";
 
 /**
  * Check whether the node falls fully within a sub-expression range.
@@ -135,6 +135,8 @@ export class SeedExpander {
         return collectIdentifierNames(seedNode.expression, subExprRange);
       case "AssignmentExpression":
         return collectIdentifierNames(seedNode.right, subExprRange);
+      case "FunctionDeclaration":
+        return seedNode.body === null ? [] : collectIdentifierNames(seedNode.body, subExprRange);
       case "IfStatement":
         return collectIdentifierNames(seedNode.test, subExprRange);
       case "SwitchStatement":
